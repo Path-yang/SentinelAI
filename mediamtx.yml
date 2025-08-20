@@ -1,5 +1,14 @@
 # MediaMTX Configuration for SentinelAI Camera
+# Low-latency HLS settings
+hls: yes
+hlsAddress: :8888
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: "0.5s"
+hlsPartDuration: "0.1s"
+
 paths:
   mystream:
     source: rtsp://yangzhenduoroger2002%40gmail.com:Yangzhendu2002%40@172.20.10.2:554/stream1
-    sourceOnDemand: yes 
+    sourceOnDemand: yes
+    sourceProtocol: tcp 
