@@ -1,0 +1,5 @@
+# MediaMTX Configuration for SentinelAI Camera
+paths:
+  mystream:
+    source: rtsp://yangzhenduoroger2002%40gmail.com:Yangzhendu2002%40@172.20.10.2:554/stream1
+    sourceOnDemand: yes 

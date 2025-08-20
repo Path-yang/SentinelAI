@@ -35,7 +35,7 @@ test('alert workflow: API event to UI update', async ({ page }) => {
   const initialAlertCount = await page.locator('.space-y-3 > div').count();
   
   // Simulate a new alert by calling the sample event API
-  const apiResponse = await page.request.get(process.env.NEXT_PUBLIC_API_URL + '/sample_event' || 'http://localhost:8000/sample_event');
+  const apiResponse = await page.request.get(process.env.NEXT_PUBLIC_API_URL + '/sample_event' || 'http://localhost:9000/sample_event');
   expect(apiResponse.ok()).toBeTruthy();
   
   // Give a moment for WebSocket to deliver the event

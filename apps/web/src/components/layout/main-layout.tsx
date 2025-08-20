@@ -9,6 +9,7 @@ import {
   Home, 
   Menu, 
   Settings, 
+  Video,
   X, 
   Zap,
   Moon,
@@ -36,6 +37,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   
   const navigationItems = [
     { name: "Dashboard", href: "/", icon: Home },
+    { name: "Live", href: "/watch", icon: Video },
     { name: "Cameras", href: "/cameras", icon: Camera },
     { name: "Settings", href: "/settings", icon: Settings },
   ];

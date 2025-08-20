@@ -65,7 +65,7 @@ async def create_event(event_data: Event):
     if not event_data.id:
         event_data.id = str(uuid.uuid4())
     
-    event_dict = event_data.model_dump()
+    event_dict = event_data.dict()
     events.append(event_dict)
     
     # Broadcast to all connected WebSocket clients
@@ -96,7 +96,7 @@ async def create_sample_event():
         description="Possible fall detected in living room"
     )
     
-    event_dict = sample_event.model_dump()
+    event_dict = sample_event.dict()
     events.append(event_dict)
     
     # Broadcast to all connected WebSocket clients
@@ -127,5 +127,5 @@ def startup_db_client():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True) 
+    port = int(os.getenv("PORT", 9000))
+    uvicorn.run("main:app", host="127.0.0.1", port=port, reload=True) 

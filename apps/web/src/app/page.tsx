@@ -26,7 +26,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchEvents() {
       try {
-        const response = await fetch(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/events');
+        const response = await fetch(process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:10000/events');
         const data = await response.json();
         
         if (data && Array.isArray(data.events)) {
