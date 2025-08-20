@@ -18,17 +18,24 @@ export const initHlsInstance = (
   const hls = new Hls({
     enableWorker: true,
     lowLatencyMode: true,
-    backBufferLength: 90,
-    maxBufferLength: 30,
-    maxMaxBufferLength: 600,
-    maxBufferSize: 60 * 1000 * 1000, // 60MB
-    maxBufferHole: 0.5,
-    highBufferWatchdogPeriod: 2,
-    nudgeOffset: 0.2,
-    nudgeMaxRetry: 5,
-    maxFragLookUpTolerance: 0.25,
-    liveSyncDurationCount: 3,
-    liveMaxLatencyDurationCount: 10,
+    // Ultra-low latency settings
+    backBufferLength: 30, // Reduced from 90
+    maxBufferLength: 10, // Reduced from 30
+    maxMaxBufferLength: 30, // Reduced from 600
+    maxBufferSize: 10 * 1000 * 1000, // Reduced to 10MB
+    maxBufferHole: 0.1, // Reduced from 0.5
+    highBufferWatchdogPeriod: 1, // Reduced from 2
+    nudgeOffset: 0.1, // Reduced from 0.2
+    nudgeMaxRetry: 3, // Reduced from 5
+    maxFragLookUpTolerance: 0.1, // Reduced from 0.25
+    liveSyncDurationCount: 1, // Reduced from 3
+    liveMaxLatencyDurationCount: 3, // Reduced from 10
+    // Additional low-latency optimizations
+    liveDurationInfinity: true,
+    progressive: true,
+    // Reduce segment loading time
+    maxLoadingDelay: 1,
+    maxBufferStarvationDelay: 2,
   });
 
   hls.loadSource(src);

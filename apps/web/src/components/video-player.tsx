@@ -209,6 +209,10 @@ export function VideoPlayer({
         onLoadedData={() => setLoading(false)}
         onError={() => handleError('Failed to load video')}
         aria-label="Live video stream"
+        // Low-latency optimizations
+        preload="metadata"
+        disablePictureInPicture={false}
+        disableRemotePlayback={false}
       />
       
       {/* Latency badge */}
