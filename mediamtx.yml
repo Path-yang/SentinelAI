@@ -1,10 +1,10 @@
 # MediaMTX Configuration for SentinelAI Camera
-# Optimized low-latency HLS settings
+# Ultra-aggressive low-latency HLS settings for sub-second delay
 hls: yes
 hlsAddress: :8888
 hlsVariant: lowLatency
 hlsSegmentCount: 7
-hlsSegmentDuration: "0.3s"
+hlsSegmentDuration: "0.1s"
 hlsPartDuration: "0.1s"
 
 paths:

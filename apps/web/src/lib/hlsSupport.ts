@@ -18,24 +18,40 @@ export const initHlsInstance = (
   const hls = new Hls({
     enableWorker: true,
     lowLatencyMode: true,
-    // Ultra-low latency settings
-    backBufferLength: 30, // Reduced from 90
-    maxBufferLength: 10, // Reduced from 30
-    maxMaxBufferLength: 30, // Reduced from 600
-    maxBufferSize: 10 * 1000 * 1000, // Reduced to 10MB
-    maxBufferHole: 0.1, // Reduced from 0.5
-    highBufferWatchdogPeriod: 1, // Reduced from 2
-    nudgeOffset: 0.1, // Reduced from 0.2
-    nudgeMaxRetry: 3, // Reduced from 5
-    maxFragLookUpTolerance: 0.1, // Reduced from 0.25
-    liveSyncDurationCount: 1, // Reduced from 3
-    liveMaxLatencyDurationCount: 3, // Reduced from 10
-    // Additional low-latency optimizations
+    // Ultra-aggressive low-latency settings for sub-second delay
+    backBufferLength: 5, // Minimal back buffer
+    maxBufferLength: 2, // Very small buffer
+    maxMaxBufferLength: 5, // Minimal max buffer
+    maxBufferSize: 2 * 1000 * 1000, // Only 2MB buffer
+    maxBufferHole: 0.05, // Very small buffer hole tolerance
+    highBufferWatchdogPeriod: 0.5, // Aggressive watchdog
+    nudgeOffset: 0.05, // Minimal nudge offset
+    nudgeMaxRetry: 2, // Fewer retries
+    maxFragLookUpTolerance: 0.05, // Minimal tolerance
+    liveSyncDurationCount: 0.5, // Half segment sync
+    liveMaxLatencyDurationCount: 1, // Minimal latency
+    // Additional ultra-low latency optimizations
     liveDurationInfinity: true,
     progressive: true,
-    // Reduce segment loading time
-    maxLoadingDelay: 1,
-    maxBufferStarvationDelay: 2,
+    // Minimal loading delays
+    maxLoadingDelay: 0.5,
+    maxBufferStarvationDelay: 0.5,
+    // Disable features that add latency
+    enableSoftwareAES: false,
+    enableDateRangeMetadataCues: false,
+    enableEmsgMetadataCues: false,
+    enableID3MetadataCues: false,
+    enableWebVTT: false,
+    enableIMSC1: false,
+    enableCEA708Captions: false,
+    // Aggressive ABR for low latency
+    abrEwmaFastLive: 1,
+    abrEwmaSlowLive: 1,
+    abrEwmaFastVoD: 1,
+    abrEwmaSlowVoD: 1,
+    abrBandWidthFactor: 0.95,
+    abrBandWidthUpFactor: 0.7,
+    abrMaxWithRealBitrate: true,
   });
 
   hls.loadSource(src);
