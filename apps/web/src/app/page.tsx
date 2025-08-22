@@ -2,15 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Bell, Camera, Clock } from "lucide-react";
+import { AlertCircle, Bell, Camera, Clock, Zap, Activity } from "lucide-react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { VideoPlayer } from "@/components/video-player";
 import { AlertItem } from "@/components/dashboard/alert-item";
 import { StatsCard } from "@/components/dashboard/stats-card";
+import { InteractiveCameraControls } from "@/components/dashboard/interactive-camera-controls";
+import { InteractiveAlerts } from "@/components/dashboard/interactive-alerts";
+import { NotificationToast } from "@/components/ui/notification-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useAppStore, Event } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { status: wsStatus } = useWebSocket();
@@ -21,6 +26,13 @@ export default function DashboardPage() {
   const stats = useAppStore((state) => state.stats);
   
   const [isLoading, setIsLoading] = useState(true);
+  const [showCameraControls, setShowCameraControls] = useState(false);
+  const [systemStatus, setSystemStatus] = useState({
+    ai: 'active',
+    streaming: 'active',
+    storage: 'normal',
+    network: 'stable'
+  });
 
   // Fetch initial events from the API
   useEffect(() => {
@@ -46,8 +58,20 @@ export default function DashboardPage() {
       useAppStore.getState().updateStat('uptime', stats.uptime + 60);
     }, 60000);
     
+    // Simulate system status updates
+    const statusInterval = setInterval(() => {
+      setSystemStatus(prev => ({
+        ...prev,
+        ai: Math.random() > 0.1 ? 'active' : 'processing',
+        streaming: Math.random() > 0.05 ? 'active' : 'buffering',
+        storage: Math.random() > 0.2 ? 'normal' : 'warning',
+        network: Math.random() > 0.1 ? 'stable' : 'unstable'
+      }));
+    }, 10000);
+    
     return () => {
       clearInterval(uptimeInterval);
+      clearInterval(statusInterval);
     };
   }, [stats.uptime]);
 
@@ -67,14 +91,102 @@ export default function DashboardPage() {
     return `${hours}h ${minutes}m`;
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+      case 'stable':
+      case 'normal':
+        return 'text-green-500';
+      case 'processing':
+      case 'buffering':
+        return 'text-yellow-500';
+      case 'warning':
+      case 'unstable':
+        return 'text-red-500';
+      default:
+        return 'text-gray-500';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'active':
+      case 'stable':
+      case 'normal':
+        return '●';
+      case 'processing':
+      case 'buffering':
+        return '○';
+      case 'warning':
+      case 'unstable':
+        return '▲';
+      default:
+        return '●';
+    }
+  };
+
   return (
     <MainLayout>
+      {/* System Status Bar */}
+      <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <span className={cn("text-sm", getStatusColor(systemStatus.ai))}>
+                {getStatusIcon(systemStatus.ai)}
+              </span>
+              <span className="text-sm font-medium">AI: {systemStatus.ai}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className={cn("text-sm", getStatusColor(systemStatus.streaming))}>
+                {getStatusIcon(systemStatus.streaming)}
+              </span>
+              <span className="text-sm font-medium">Stream: {systemStatus.streaming}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className={cn("text-sm", getStatusColor(systemStatus.network))}>
+                {getStatusIcon(systemStatus.network)}
+              </span>
+              <span className="text-sm font-medium">Network: {systemStatus.network}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Badge variant="outline" className="text-xs">
+              <Activity className="w-3 h-3 mr-1" />
+              {wsStatus === 'connected' ? 'Connected' : 'Disconnected'}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCameraControls(!showCameraControls)}
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              {showCameraControls ? 'Hide' : 'Show'} Controls
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">
             Monitor your cameras and view anomaly alerts.
           </p>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm">
+            <Zap className="w-4 h-4 mr-2" />
+            Test AI
+          </Button>
+          <Link href="/watch">
+            <Button size="sm">
+              <Camera className="w-4 h-4 mr-2" />
+              Live View
+            </Button>
+          </Link>
         </div>
       </div>
       
@@ -120,6 +232,10 @@ export default function DashboardPage() {
                 <div className="flex items-center space-x-2 text-sm">
                   <div className="h-2 w-2 rounded-full bg-green-500" />
                   <span className="text-muted-foreground">Live</span>
+                  <Badge variant="outline" className="text-xs">
+                    <Zap className="w-3 h-3 mr-1" />
+                    AI Active
+                  </Badge>
                 </div>
               </div>
             </CardHeader>
@@ -140,57 +256,21 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Camera Controls Panel */}
+          {showCameraControls && (
+            <InteractiveCameraControls />
+          )}
         </div>
         
-        {/* Alerts panel */}
+        {/* Interactive Alerts Panel */}
         <div className="lg:col-span-3 space-y-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle>Recent Alerts</CardTitle>
-                <Link href="/cameras">
-                  <Button variant="link" size="sm" className="text-muted-foreground">
-                    View all
-                  </Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-2 pb-6 max-h-[550px] overflow-y-auto">
-              <div className="space-y-3">
-                {events.length > 0 ? (
-                  events.slice(0, 10).map((event, index) => {
-                    const camera = cameras.find(c => c.id === event.camera_id);
-                    return (
-                      <AlertItem
-                        key={event.id}
-                        alert={event}
-                        index={index}
-                        cameraName={camera?.name}
-                      />
-                    );
-                  })
-                ) : isLoading ? (
-                  <div className="flex items-center justify-center h-40">
-                    <div className="animate-pulse flex items-center space-x-2">
-                      <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce"></div>
-                      <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce delay-100"></div>
-                      <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce delay-200"></div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium mb-1">No alerts yet</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Alerts will appear here when anomalies are detected
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <InteractiveAlerts />
         </div>
       </div>
+
+      {/* Real-time Notifications */}
+      <NotificationToast />
     </MainLayout>
   );
 } 
