@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera Connection Example</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        input, button {
+            padding: 8px;
+            font-size: 16px;
+        }
+        button {
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .video-container {
+            margin-top: 20px;
+            background-color: #000;
+            position: relative;
+        }
+        video {
+            width: 100%;
+            height: auto;
+        }
+        .instructions {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Camera Connection Example</h1>
+    
+    <div class="instructions">
+        <h2>How to Connect to Your Camera</h2>
+        <p>This example shows how to connect to your camera using HLS streaming.</p>
+        <h3>Option 1: Use the Test Stream</h3>
+        <p>Click the "Use Test Stream" button to connect to a test pattern stream.</p>
+        <h3>Option 2: Connect to Your Camera</h3>
+        <p>To connect to your own camera:</p>
+        <ol>
+            <li>Enter the HLS URL of your camera stream (must end with .m3u8)</li>
+            <li>If your camera requires authentication, enter the username and password</li>
+            <li>Click "Connect" to start the stream</li>
+        </ol>
+        <p><strong>Note:</strong> If you have an RTSP camera, you need to use MediaMTX to convert it to HLS first.</p>
+    </div>
+    
+    <div class="container">
+        <div class="form-group">
+            <label for="streamUrl">Stream URL (HLS)</label>
+            <input id="streamUrl" type="text" placeholder="http://localhost:8084/mystream/index.m3u8" />
+        </div>
+        
+        <div class="form-group">
+            <label for="username">Username (Optional)</label>
+            <input id="username" type="text" placeholder="Username" />
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password (Optional)</label>
+            <input id="password" type="password" placeholder="Password" />
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button id="connectBtn">Connect</button>
+            <button id="testStreamBtn">Use Test Stream</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+        
+        <div id="errorMsg" class="error"></div>
+        
+        <div class="video-container">
+            <video id="video" controls></video>
+        </div>
+    </div>
+    
+    <script>
+        const video = document.getElementById('video');
+        const streamUrlInput = document.getElementById('streamUrl');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const connectBtn = document.getElementById('connectBtn');
+        const testStreamBtn = document.getElementById('testStreamBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        
+        let hls = null;
+        
+        function displayError(message) {
+            errorMsg.textContent = message;
+        }
+        
+        function clearError() {
+            errorMsg.textContent = '';
+        }
+        
+        function connectToStream(url) {
+            // Destroy any existing HLS instance
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            
+            clearError();
+            
+            try {
+                if (Hls.isSupported()) {
+                    hls = new Hls({
+                        enableWorker: true,
+                        lowLatencyMode: true,
+                    });
+                    
+                    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+                        console.log("HLS: Media attached");
+                    });
+                    
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        console.log("HLS: Manifest parsed");
+                        video.play().catch((e) => {
+                            console.error("Error playing video:", e);
+                            displayError("Could not autoplay video. Please click play manually.");
+                        });
+                        
+                        // Update UI
+                        connectBtn.disabled = true;
+                        testStreamBtn.disabled = true;
+                        disconnectBtn.disabled = false;
+                        streamUrlInput.disabled = true;
+                        usernameInput.disabled = true;
+                        passwordInput.disabled = true;
+                    });
+                    
+                    hls.on(Hls.Events.ERROR, (_, data) => {
+                        if (data.fatal) {
+                            console.error("HLS error:", data);
+                            
+                            switch (data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    displayError("Network error: Failed to load the stream. Please check the URL and your network connection.");
+                                    hls.startLoad();
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    displayError("Media error: There was a problem with the stream format.");
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    displayError("Stream error: Failed to load the video stream.");
+                                    disconnectStream();
+                                    break;
+                            }
+                        }
+                    });
+                    
+                    hls.loadSource(url);
+                    hls.attachMedia(video);
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    // For Safari
+                    video.src = url;
+                    video.addEventListener('loadedmetadata', () => {
+                        video.play().catch((e) => console.error("Error playing video:", e));
+                        
+                        // Update UI
+                        connectBtn.disabled = true;
+                        testStreamBtn.disabled = true;
+                        disconnectBtn.disabled = false;
+                        streamUrlInput.disabled = true;
+                        usernameInput.disabled = true;
+                        passwordInput.disabled = true;
+                    });
+                } else {
+                    displayError("Your browser doesn't support HLS playback.");
+                }
+            } catch (error) {
+                console.error("Error setting up video:", error);
+                displayError("Failed to connect to the stream.");
+            }
+        }
+        
+        function disconnectStream() {
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            
+            video.src = "";
+            video.load();
+            
+            // Update UI
+            connectBtn.disabled = false;
+            testStreamBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            streamUrlInput.disabled = false;
+            usernameInput.disabled = false;
+            passwordInput.disabled = false;
+            
+            clearError();
+        }
+        
+        connectBtn.addEventListener('click', () => {
+            const url = streamUrlInput.value.trim();
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+            
+            if (!url) {
+                displayError("Please enter a stream URL");
+                return;
+            }
+            
+            if (!url.toLowerCase().endsWith('.m3u8')) {
+                displayError("Please provide an HLS stream URL (ending with .m3u8)");
+                return;
+            }
+            
+            // Determine if we need to use authentication
+            let finalUrl = url;
+            if (username || password) {
+                // In a real app, you would handle authentication on the server side
+                // This is just for demonstration purposes
+                const encodedUrl = encodeURIComponent(url);
+                finalUrl = `${url}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+            }
+            
+            connectToStream(finalUrl);
+        });
+        
+        testStreamBtn.addEventListener('click', () => {
+            // Use the test stream from MediaMTX
+            const testStreamUrl = 'http://localhost:8084/test/index.m3u8';
+            streamUrlInput.value = testStreamUrl;
+            connectToStream(testStreamUrl);
+        });
+        
+        disconnectBtn.addEventListener('click', disconnectStream);
+    </script>
+</body>
+</html> 

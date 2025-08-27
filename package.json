@@ -10,6 +10,12 @@
     "build:backend": "pnpm --filter backend build",
     "build": "pnpm build:web && pnpm build:backend",
     "start:web": "pnpm --filter web start",
-    "test": "pnpm --filter web test"
+    "test": "pnpm --filter web test",
+    "start:stream-config": "node configure-stream.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "js-yaml": "^4.1.0"
   }
-} 
+}

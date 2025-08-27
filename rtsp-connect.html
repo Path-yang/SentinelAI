@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RTSP Camera Connection</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        input, button {
+            padding: 8px;
+            font-size: 16px;
+        }
+        button {
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .video-container {
+            margin-top: 20px;
+            background-color: #000;
+            position: relative;
+            min-height: 300px;
+        }
+        video {
+            width: 100%;
+            height: auto;
+        }
+        .instructions {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+        }
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>RTSP Camera Connection</h1>
+    
+    <div class="instructions">
+        <h2>Connect to Your RTSP Camera</h2>
+        <p>This tool allows you to connect to your RTSP camera and view the stream in your browser.</p>
+        <ol>
+            <li>Enter your RTSP URL (e.g., rtsp://192.168.1.100:554/stream1)</li>
+            <li>Enter your username and password if required</li>
+            <li>Click "Connect" to start the stream</li>
+            <li>Click "Disconnect" when you're done</li>
+        </ol>
+        <p><strong>Note:</strong> This tool uses MediaMTX to convert RTSP to HLS for browser viewing.</p>
+    </div>
+    
+    <div class="container">
+        <div class="form-group">
+            <label for="rtspUrl">RTSP URL</label>
+            <input id="rtspUrl" type="text" placeholder="rtsp://192.168.1.100:554/stream1" />
+        </div>
+        
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input id="username" type="text" placeholder="Username" />
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="Password" />
+        </div>
+        
+        <div class="form-group">
+            <label for="streamName">Stream Name (letters, numbers, underscore only)</label>
+            <input id="streamName" type="text" placeholder="my_camera" value="my_camera" />
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+        
+        <div id="statusMsg" class="status disconnected">Disconnected</div>
+        <div id="errorMsg" class="error"></div>
+        
+        <div class="video-container">
+            <div id="loadingIndicator" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Connecting to camera...</p>
+            </div>
+            <video id="video" controls></video>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:3001';
+        const video = document.getElementById('video');
+        const rtspUrlInput = document.getElementById('rtspUrl');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const streamNameInput = document.getElementById('streamName');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const statusMsg = document.getElementById('statusMsg');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        
+        let hls = null;
+        let currentStreamName = null;
+        
+        function displayError(message) {
+            errorMsg.textContent = message;
+            statusMsg.className = 'status disconnected';
+            statusMsg.textContent = 'Error';
+        }
+        
+        function clearError() {
+            errorMsg.textContent = '';
+        }
+        
+        function showLoading() {
+            loadingIndicator.classList.remove('hidden');
+        }
+        
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+        }
+        
+        function updateStatus(connected) {
+            if (connected) {
+                statusMsg.className = 'status connected';
+                statusMsg.textContent = 'Connected';
+            } else {
+                statusMsg.className = 'status disconnected';
+                statusMsg.textContent = 'Disconnected';
+            }
+        }
+        
+        function validateInputs() {
+            const rtspUrl = rtspUrlInput.value.trim();
+            const streamName = streamNameInput.value.trim();
+            
+            if (!rtspUrl) {
+                displayError("Please enter an RTSP URL");
+                return false;
+            }
+            
+            if (!rtspUrl.toLowerCase().startsWith('rtsp://')) {
+                displayError("URL must start with rtsp://");
+                return false;
+            }
+            
+            if (!streamName) {
+                displayError("Please enter a stream name");
+                return false;
+            }
+            
+            // Check if stream name contains only letters, numbers, and underscores
+            if (!/^[a-zA-Z0-9_]+$/.test(streamName)) {
+                displayError("Stream name can only contain letters, numbers, and underscores");
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function configureStream() {
+            if (!validateInputs()) {
+                return Promise.reject("Validation failed");
+            }
+            
+            const rtspUrl = rtspUrlInput.value.trim();
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+            const streamName = streamNameInput.value.trim();
+            
+            // Build the RTSP URL with credentials if provided
+            let fullRtspUrl = rtspUrl;
+            if (username && password) {
+                // Extract protocol, host, and path
+                const urlMatch = rtspUrl.match(/^(rtsp:\/\/)([^\/]+)(\/.*)?$/);
+                if (urlMatch) {
+                    const protocol = urlMatch[1];
+                    const host = urlMatch[2];
+                    const path = urlMatch[3] || '';
+                    
+                    // Insert credentials
+                    fullRtspUrl = `${protocol}${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}${path}`;
+                }
+            }
+            
+            // Save the current stream name for later use
+            currentStreamName = streamName;
+            
+            // Send request to the API
+            return fetch(`${API_URL}/api/configure-stream`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    streamName: streamName,
+                    rtspUrl: fullRtspUrl
+                }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Failed to configure stream');
+                    });
+                }
+                return response.json();
+            });
+        }
+        
+        function removeStream() {
+            if (!currentStreamName) {
+                return Promise.resolve();
+            }
+            
+            return fetch(`${API_URL}/api/remove-stream`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    streamName: currentStreamName
+                }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.error('Failed to remove stream');
+                }
+                currentStreamName = null;
+            })
+            .catch(error => {
+                console.error('Error removing stream:', error);
+            });
+        }
+        
+        function connectToStream(hlsUrl) {
+            clearError();
+            
+            try {
+                if (Hls.isSupported()) {
+                    hls = new Hls({
+                        enableWorker: true,
+                        lowLatencyMode: true,
+                    });
+                    
+                    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+                        console.log("HLS: Media attached");
+                    });
+                    
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        console.log("HLS: Manifest parsed");
+                        hideLoading();
+                        updateStatus(true);
+                        
+                        video.play().catch((e) => {
+                            console.error("Error playing video:", e);
+                            displayError("Could not autoplay video. Please click play manually.");
+                        });
+                    });
+                    
+                    hls.on(Hls.Events.ERROR, (_, data) => {
+                        if (data.fatal) {
+                            console.error("HLS error:", data);
+                            hideLoading();
+                            
+                            switch (data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    displayError("Network error: Failed to load the stream. Please check the URL and your network connection.");
+                                    hls.startLoad();
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    displayError("Media error: There was a problem with the stream format.");
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    displayError("Stream error: Failed to load the video stream.");
+                                    disconnectStream();
+                                    break;
+                            }
+                        }
+                    });
+                    
+                    hls.loadSource(hlsUrl);
+                    hls.attachMedia(video);
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    // For Safari
+                    video.src = hlsUrl;
+                    video.addEventListener('loadedmetadata', () => {
+                        hideLoading();
+                        updateStatus(true);
+                        video.play().catch((e) => console.error("Error playing video:", e));
+                    });
+                } else {
+                    hideLoading();
+                    displayError("Your browser doesn't support HLS playback.");
+                }
+                
+                // Update UI
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                rtspUrlInput.disabled = true;
+                usernameInput.disabled = true;
+                passwordInput.disabled = true;
+                streamNameInput.disabled = true;
+            } catch (error) {
+                hideLoading();
+                console.error("Error setting up video:", error);
+                displayError("Failed to connect to the stream.");
+            }
+        }
+        
+        function disconnectStream() {
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            
+            video.src = "";
+            video.load();
+            
+            // Remove the stream from MediaMTX
+            removeStream().finally(() => {
+                // Update UI
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                rtspUrlInput.disabled = false;
+                usernameInput.disabled = false;
+                passwordInput.disabled = false;
+                streamNameInput.disabled = false;
+                
+                updateStatus(false);
+                clearError();
+                hideLoading();
+            });
+        }
+        
+        connectBtn.addEventListener('click', () => {
+            showLoading();
+            clearError();
+            
+            configureStream()
+                .then(response => {
+                    connectToStream(response.hlsUrl);
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error("Error:", error);
+                    if (error !== "Validation failed") {
+                        displayError(error.message || "Failed to configure stream. Please try again.");
+                    }
+                });
+        });
+        
+        disconnectBtn.addEventListener('click', disconnectStream);
+        
+        // Initialize
+        updateStatus(false);
+        
+        // Handle page unload to clean up
+        window.addEventListener('beforeunload', () => {
+            removeStream();
+        });
+    </script>
+</body>
+</html> 
