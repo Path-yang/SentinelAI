@@ -26,6 +26,8 @@ env.bak/
 venv.bak/
 backend_env/
 *.log
+backend.pid
+mediamtx.log
 
 # OS
 .DS_Store
