@@ -12,7 +12,8 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   muted?: boolean;
   controls?: boolean;
-  silent?: boolean; // Add silent mode option
+  silent?: boolean;
+  stabilizePlayback?: boolean; // Add prop to prevent constant reconnecting
 }
 
 export function VideoPlayer({
@@ -21,24 +22,41 @@ export function VideoPlayer({
   autoPlay = true,
   muted = true,
   controls = true,
-  silent = false, // Default to false
+  silent = false,
+  stabilizePlayback = false,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentBoundingBox, setCurrentBoundingBox] = useState<BoundingBox | null>(null);
   const [showBoundingBox, setShowBoundingBox] = useState(false);
   const { currentAlert } = useAlertsStore();
+  
+  // Track if we've already set up HLS to prevent multiple setups
+  const setupCompleteRef = useRef(false);
 
   // Handle HLS video loading
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    
+    // If we're stabilizing playback and already have an HLS instance with the same source, don't recreate
+    if (stabilizePlayback && hlsRef.current && setupCompleteRef.current) {
+      console.log("Stabilizing playback: reusing existing HLS instance");
+      return;
+    }
 
     let hls: Hls | null = null;
 
     const setupHls = () => {
       if (Hls.isSupported()) {
+        // Clean up existing instance if any
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+        
         // Extreme low-latency HLS configuration
         hls = new Hls({
           enableWorker: true,
@@ -84,7 +102,15 @@ export function VideoPlayer({
           enableIMSC1: false,
           enableDateRangeMetadataCues: false,
           
-          debug: false // Disable debug logs
+          debug: false, // Disable debug logs
+
+          // Add stability options
+          fragLoadingMaxRetry: 10,
+          manifestLoadingMaxRetry: 10,
+          levelLoadingMaxRetry: 10,
+          fragLoadingRetryDelay: 500,
+          manifestLoadingRetryDelay: 500,
+          levelLoadingRetryDelay: 500,
         });
 
         // Force playlist reload every 500ms for live streams
@@ -92,7 +118,7 @@ export function VideoPlayer({
           if (hls && hls.levels && hls.levels.length > 0 && hls.currentLevel >= 0) {
             hls.loadLevel(hls.currentLevel);
           }
-        }, 500);
+        }, stabilizePlayback ? 2000 : 500); // Less frequent refreshes when stabilizing
 
         hls.on(Hls.Events.MEDIA_ATTACHED, () => {
           console.log("HLS: Media attached");
@@ -101,6 +127,8 @@ export function VideoPlayer({
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           console.log("HLS: Manifest parsed");
           setIsLoading(false);
+          setupCompleteRef.current = true;
+          
           if (autoPlay) {
             // Set video properties for extreme low latency
             video.preload = "auto";
@@ -118,7 +146,8 @@ export function VideoPlayer({
             
             const handlePlaying = () => {
               // Faster to catch up with live edge when playing smoothly
-              video.playbackRate = 1.05;
+              // Use a more conservative speed when stabilizing
+              video.playbackRate = stabilizePlayback ? 1.02 : 1.05;
             };
             
             // Add event listeners
@@ -136,8 +165,8 @@ export function VideoPlayer({
               }
             };
             
-            // Periodically seek to live edge
-            const liveEdgeInterval = setInterval(seekToLiveEdge, 2000);
+            // Periodically seek to live edge - less frequently when stabilizing
+            const liveEdgeInterval = setInterval(seekToLiveEdge, stabilizePlayback ? 5000 : 2000);
             
             video.play().catch((e) => console.error("Error playing video:", e));
             
@@ -155,7 +184,7 @@ export function VideoPlayer({
           };
         });
 
-        // Error handling with recovery
+        // Error handling with recovery - less aggressive when stabilizing
         hls.on(Hls.Events.ERROR, (_, data) => {
           if (data.fatal) {
             switch (data.type) {
@@ -164,37 +193,37 @@ export function VideoPlayer({
                   console.error("HLS: Fatal network error", data);
                   setError("Network error. Trying to recover...");
                 }
-                // More aggressive recovery for network errors
+                // More aggressive recovery for network errors - but with delay when stabilizing
                 setTimeout(() => {
                   hls?.startLoad();
-                }, 250); // Reduced timeout
+                }, stabilizePlayback ? 1000 : 250);
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 if (!silent) {
                   console.error("HLS: Fatal media error", data);
                   setError("Media error. Trying to recover...");
                 }
-                // More aggressive media error recovery
+                // More aggressive media error recovery - but with delay when stabilizing
                 setTimeout(() => {
                   hls?.recoverMediaError();
-                }, 100); // Reduced timeout
+                }, stabilizePlayback ? 500 : 100);
                 break;
               default:
                 if (!silent) {
                   console.error("HLS: Fatal error", data);
                   setError("Could not load video stream");
                 }
-                // Try to recreate the HLS instance
+                // Try to recreate the HLS instance - but with delay when stabilizing
                 setTimeout(() => {
                   if (hls) {
                     hls.destroy();
                     setupHls();
                   }
-                }, 500); // Reduced timeout
+                }, stabilizePlayback ? 2000 : 500);
                 break;
             }
-          } else {
-            // For non-fatal errors, try to recover immediately
+          } else if (!stabilizePlayback) {
+            // For non-fatal errors, try to recover immediately - skip when stabilizing
             if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
               hls?.recoverMediaError();
             } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -211,11 +240,11 @@ export function VideoPlayer({
         // Force reload of the playlist more frequently
         hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
           if (data.details.live) {
-            // For live streams, reduce the reload interval
-            data.details.targetduration = Math.min(data.details.targetduration, 0.5);
+            // For live streams, reduce the reload interval - less aggressive when stabilizing
+            data.details.targetduration = Math.min(data.details.targetduration, stabilizePlayback ? 1 : 0.5);
             
-            // Force seeking to live edge when level is loaded
-            if (video && !video.paused && hls.liveSyncPosition) {
+            // Force seeking to live edge when level is loaded - only if not stabilizing
+            if (!stabilizePlayback && video && !video.paused && hls.liveSyncPosition) {
               video.currentTime = hls.liveSyncPosition;
             }
           }
@@ -229,23 +258,26 @@ export function VideoPlayer({
         });
 
         // Add timestamp to URL to prevent caching
-        const urlWithTimestamp = `${src}?_t=${Date.now()}`;
+        const urlWithTimestamp = stabilizePlayback ? src : `${src}?_t=${Date.now()}`;
         hls.loadSource(urlWithTimestamp);
         hls.attachMedia(video);
+        hlsRef.current = hls;
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         // For Safari
         // Add timestamp to URL to prevent caching
-        const urlWithTimestamp = `${src}?_t=${Date.now()}`;
+        const urlWithTimestamp = stabilizePlayback ? src : `${src}?_t=${Date.now()}`;
         video.src = urlWithTimestamp;
         video.preload = "auto";
         
         video.addEventListener("loadedmetadata", () => {
           setIsLoading(false);
+          setupCompleteRef.current = true;
+          
           if (autoPlay) {
             // Set video properties for low latency
             video.preload = "auto";
             video.muted = muted; // Muted videos start faster
-            video.playbackRate = 1.05; // Play slightly faster to catch up
+            video.playbackRate = stabilizePlayback ? 1.02 : 1.05; // Play slightly faster to catch up
             
             video.play().catch((e) => console.error("Error playing video:", e));
           }
@@ -262,7 +294,7 @@ export function VideoPlayer({
         hls.destroy();
       }
     };
-  }, [src, autoPlay, silent, muted]);
+  }, [src, autoPlay, silent, muted, stabilizePlayback]);
 
   // Handle alerts and bounding box display
   useEffect(() => {

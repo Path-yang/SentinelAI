@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { VideoPlayer } from "@/components/video-player";
 import { AlertsPanel } from "@/components/alerts-panel";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -20,16 +20,54 @@ export default function Dashboard() {
   const router = useRouter();
   const { isConnected: cameraConnected, streamUrl, cameraDetails } = useCameraStore();
   const [videoSource, setVideoSource] = useState<string | null>(null);
+  
+  // Prevent unnecessary re-renders by using a ref to track if we've set the source
+  const sourceSetRef = useRef(false);
 
-  // Set video source from store or default
+  // Set video source from store or default only once
   useEffect(() => {
-    if (cameraConnected && streamUrl) {
-      setVideoSource(streamUrl);
-    } else {
-      // Use default stream if available from env or fallback
-      setVideoSource(process.env.NEXT_PUBLIC_HLS_URL || null);
+    // Only update if we haven't set it yet or if connection state changes
+    if (!sourceSetRef.current || (cameraConnected && streamUrl)) {
+      if (cameraConnected && streamUrl) {
+        // Add cache-busting parameter to prevent constant reloading
+        const urlWithTimestamp = `${streamUrl}?_t=${Date.now()}`;
+        setVideoSource(urlWithTimestamp);
+      } else {
+        // Use default stream if available from env or fallback
+        const defaultUrl = process.env.NEXT_PUBLIC_HLS_URL || null;
+        setVideoSource(defaultUrl);
+      }
+      sourceSetRef.current = true;
     }
   }, [cameraConnected, streamUrl]);
+  
+  // Memoize the VideoPlayer to prevent unnecessary re-renders
+  const memoizedVideoPlayer = useMemo(() => {
+    if (!videoSource) {
+      return (
+        <div className="aspect-video bg-black rounded-md flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            <p>No camera connected</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mt-4"
+              onClick={() => router.push("/camera")}
+            >
+              Connect Camera
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    
+    return <VideoPlayer 
+      src={videoSource} 
+      silent={true} 
+      key={videoSource} // Use key to ensure proper remounting when source changes
+      stabilizePlayback={true} // Add prop to prevent constant reconnecting
+    />;
+  }, [videoSource, router]);
 
   // Test function to trigger a sample alert
   const testAI = async () => {
@@ -118,23 +156,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="p-6 pt-2 pb-6">
-              {videoSource ? (
-                <VideoPlayer src={videoSource} silent={true} />
-              ) : (
-                <div className="aspect-video bg-black rounded-md flex items-center justify-center">
-                  <div className="text-center text-gray-500">
-                    <p>No camera connected</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-4"
-                      onClick={() => router.push("/camera")}
-                    >
-                      Connect Camera
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {memoizedVideoPlayer}
             </div>
           </div>
         </div>
