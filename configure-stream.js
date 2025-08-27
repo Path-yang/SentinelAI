@@ -5,6 +5,7 @@ const path = require('path');
 const yaml = require('js-yaml');
 const express = require('express');
 const cors = require('cors');
+const { execSync } = require('child_process');
 
 const app = express();
 const PORT = 3001;
@@ -77,6 +78,14 @@ app.post('/api/configure-stream', async (req, res) => {
       return res.status(500).json({ error: 'Failed to update configuration' });
     }
     
+    // Restart MediaMTX to pick up new config
+    try {
+      execSync('pkill -f mediamtx');
+      execSync('nohup ./mediamtx > mediamtx.log 2>&1 &');
+    } catch (err) {
+      console.error('Failed to restart MediaMTX:', err);
+    }
+    
     // Return success with HLS URL
     res.json({
       success: true,
@@ -108,6 +117,14 @@ app.post('/api/remove-stream', async (req, res) => {
       if (!writeConfig(config)) {
         return res.status(500).json({ error: 'Failed to update configuration' });
       }
+    }
+    
+    // Restart MediaMTX to pick up new config
+    try {
+      execSync('pkill -f mediamtx');
+      execSync('nohup ./mediamtx > mediamtx.log 2>&1 &');
+    } catch (err) {
+      console.error('Failed to restart MediaMTX:', err);
     }
     
     // Return success
