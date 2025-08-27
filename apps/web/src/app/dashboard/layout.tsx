@@ -11,6 +11,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Live", href: "/dashboard/watch", icon: Video },
   { name: "Cameras", href: "/dashboard/cameras", icon: Camera },
+  { name: "Connect Camera", href: "/camera", icon: Camera },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
