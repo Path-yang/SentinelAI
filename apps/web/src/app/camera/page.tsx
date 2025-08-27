@@ -104,10 +104,10 @@ export default function CameraPage() {
                 className="space-y-4"
               >
                 <div className="space-y-2">
-                  <Label htmlFor="streamUrl">Stream URL (HLS)</Label>
+                  <Label htmlFor="streamUrl">Stream URL (RTSP or HLS)</Label>
                   <Input
                     id="streamUrl"
-                    placeholder="https://example.com/stream.m3u8 (leave empty for test stream)"
+                    placeholder="rtsp://username:password@192.168.1.116:554/stream1 or https://example.com/stream.m3u8"
                     value={streamUrl}
                     onChange={(e) => setStreamUrl(e.target.value)}
                     disabled={isConnected || isLoading}
