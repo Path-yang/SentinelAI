@@ -1,7 +1,7 @@
 # SentinelAI
 
 <div align="center">
-  <img src="logo.png" alt="SentinelAI Logo" width="150" />
+  <img src="logo only.png" alt="SentinelAI Logo" width="150" />
 </div>
 
 ## 🚀 Project Overview

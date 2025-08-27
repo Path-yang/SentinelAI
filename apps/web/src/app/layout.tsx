@@ -11,10 +11,10 @@ export const metadata: Metadata = {
   description: "Transform ordinary cameras into smart anomaly detectors",
   icons: {
     icon: [
-      { url: "/images/logo.png", type: "image/png" },
+      { url: "/images/logo-only.png", type: "image/png" },
     ],
     apple: [
-      { url: "/images/logo.png", type: "image/png" },
+      { url: "/images/logo-only.png", type: "image/png" },
     ],
   },
 };
@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/images/logo.png" />
+        <link rel="icon" href="/images/logo-only.png" />
       </head>
       <body className={inter.className}>
         <ThemeProvider

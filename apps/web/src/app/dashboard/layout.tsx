@@ -41,10 +41,10 @@ export default function DashboardLayout({
             className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
           >
             <Image 
-              src="/images/logo.png" 
+              src="/images/logo-only.png" 
               alt="SentinelAI Logo" 
-              width={28} 
-              height={28} 
+              width={32} 
+              height={32} 
               className="rounded-md"
             />
             <span>SentinelAI</span>
@@ -150,10 +150,10 @@ export default function DashboardLayout({
             className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
           >
             <Image 
-              src="/images/logo.png" 
+              src="/images/logo-only.png" 
               alt="SentinelAI Logo" 
-              width={28} 
-              height={28}
+              width={32} 
+              height={32}
               className="rounded-md" 
             />
             <span>SentinelAI</span>
