@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function Dashboard() {
   const { isConnected } = useWebSocket({
     url: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:10000/ws/alerts",
+    silent: true, // Suppress WebSocket error messages
   });
   
   const { toast } = useToast();

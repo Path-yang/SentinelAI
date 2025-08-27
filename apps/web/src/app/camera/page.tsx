@@ -83,11 +83,41 @@ export default function CameraPage() {
         
         hls.loadSource(finalUrl);
         hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { setIsLoading(false); setIsConnected(true); video.play(); });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => { 
+          setIsLoading(false); 
+          setIsConnected(true); 
+          video.play().catch(e => console.error("Autoplay failed:", e));
+          
+          // Show success toast and navigate to dashboard after 2 seconds
+          toast({
+            title: "Camera Connected",
+            description: "Successfully connected to camera stream",
+            variant: "default",
+          });
+          
+          setTimeout(() => {
+            router.push("/dashboard");
+          }, 2000);
+        });
         hlsRef.current = hls;
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = finalUrl;
-        video.addEventListener("loadedmetadata", () => { setIsLoading(false); setIsConnected(true); video.play(); });
+        video.addEventListener("loadedmetadata", () => { 
+          setIsLoading(false); 
+          setIsConnected(true); 
+          video.play().catch(e => console.error("Autoplay failed:", e));
+          
+          // Show success toast and navigate to dashboard after 2 seconds
+          toast({
+            title: "Camera Connected",
+            description: "Successfully connected to camera stream",
+            variant: "default",
+          });
+          
+          setTimeout(() => {
+            router.push("/dashboard");
+          }, 2000);
+        });
       }
     } catch (e) { setIsLoading(false); toast({ title:"Error", description:"Playback failed", variant:"destructive" }); }
   };

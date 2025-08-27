@@ -89,8 +89,12 @@ export function useWebSocket({
       };
 
       ws.onerror = (event) => {
-        console.error("WebSocket error:", event);
-        setError(new Error("WebSocket error occurred"));
+        // Only show errors if not in silent mode
+        if (!options.silent) {
+          console.error("WebSocket error:", event);
+          setError(new Error("WebSocket error occurred"));
+        }
+        if (options.onError) options.onError(event);
       };
 
       wsRef.current = ws;
