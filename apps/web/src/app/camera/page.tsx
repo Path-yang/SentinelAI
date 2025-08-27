@@ -97,7 +97,7 @@ export default function CameraPage() {
     let rtspUrl = `rtsp://`;
     rtspUrl += `${ip}:${port}/${path}`;
     
-    // Configure stream via API with low-latency flag
+    // Configure stream via API with extreme low-latency flag
     const resp = await fetch("http://localhost:3001/api/configure-stream", {
       method: 'POST', 
       headers: { 'Content-Type':'application/json' },
@@ -106,7 +106,8 @@ export default function CameraPage() {
         rtspUrl,
         username: username || undefined,
         password: password || undefined,
-        lowLatency: true // Signal that we want low-latency configuration
+        lowLatency: true,
+        extremeLatency: true // Signal that we want extreme low-latency configuration
       })
     });
     if (!resp.ok) {
@@ -121,19 +122,38 @@ export default function CameraPage() {
     const video = videoRef.current; if (!video) return;
     try {
       if (Hls.isSupported()) {
-        // Ultra-low latency HLS configuration
+        // Extreme low-latency HLS configuration
         const hls = new Hls({ 
           enableWorker: true,
           lowLatencyMode: true,
-          liveSyncDuration: 1,
-          liveMaxLatencyDuration: 2,
+          liveSyncDuration: 0.5,
+          liveMaxLatencyDuration: 1,
           liveDurationInfinity: true,
-          maxBufferLength: 2,
-          maxBufferSize: 2 * 1000 * 1000,
-          maxBufferHole: 0.1,
+          startLevel: 0,
+          capLevelToPlayerSize: true,
+          maxBufferLength: 1,
+          maxBufferSize: 1 * 1000 * 1000,
+          maxBufferHole: 0.05,
+          maxStarvationDelay: 0.2,
+          maxLoadingDelay: 0.2,
+          backBufferLength: 0,
+          initialLiveManifestSize: 1,
+          manifestLoadingTimeOut: 2000,
+          manifestLoadingMaxRetry: 6,
+          manifestLoadingRetryDelay: 500,
           startFragPrefetch: true,
-          testBandwidth: true
+          appendErrorMaxRetry: 5,
+          testBandwidth: false,
+          progressive: false,
+          debug: false
         });
+        
+        // Force playlist reload every 500ms for live streams
+        const playlistRefreshInterval = setInterval(() => {
+          if (hls && hls.levels && hls.levels.length > 0 && hls.currentLevel >= 0) {
+            hls.loadLevel(hls.currentLevel);
+          }
+        }, 500);
         
         // Custom error handler to prevent showing network errors during initial connection
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -148,9 +168,16 @@ export default function CameraPage() {
             
             // Attempt recovery based on error type
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              setTimeout(() => hls.startLoad(), 500);
+              setTimeout(() => hls.startLoad(), 250);
             } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              setTimeout(() => hls.recoverMediaError(), 250);
+              setTimeout(() => hls.recoverMediaError(), 100);
+            }
+          } else if (!data.fatal) {
+            // For non-fatal errors, try to recover immediately
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
             }
           }
         });
@@ -163,20 +190,37 @@ export default function CameraPage() {
         // Force reload of the playlist more frequently for live streams
         hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
           if (data.details.live) {
-            data.details.targetduration = Math.min(data.details.targetduration, 1);
+            data.details.targetduration = Math.min(data.details.targetduration, 0.5);
+            
+            // Force seeking to live edge when level is loaded
+            if (video && !video.paused && hls.liveSyncPosition) {
+              video.currentTime = hls.liveSyncPosition;
+            }
           }
         });
         
-        hls.loadSource(finalUrl);
+        // Use low latency mode if available
+        hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+          if (data.frag.type === 'main') {
+            console.log(`HLS: Fragment loaded - duration: ${data.frag.duration}s`);
+          }
+        });
+        
+        // Add timestamp to URL to prevent caching
+        const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
+        hls.loadSource(urlWithTimestamp);
         hls.attachMedia(video);
+        
         hls.on(Hls.Events.MANIFEST_PARSED, () => { 
           setIsLoading(false); 
           setLocalIsConnected(true);
           setIsConnected(true);
           
-          // Set video properties for low latency
+          // Set video properties for extreme low latency
           video.preload = "auto";
           video.muted = true; // Start muted to avoid autoplay issues
+          video.autoplay = true;
+          video.playsInline = true;
           
           // Reduce latency by setting playback rate slightly faster
           const handleWaiting = () => {
@@ -184,12 +228,26 @@ export default function CameraPage() {
           };
           
           const handlePlaying = () => {
-            // Slightly faster to catch up with live edge when playing smoothly
-            video.playbackRate = 1.02;
+            // Faster to catch up with live edge when playing smoothly
+            video.playbackRate = 1.05;
           };
           
           video.addEventListener('waiting', handleWaiting);
           video.addEventListener('playing', handlePlaying);
+          
+          // Force seeking to live edge
+          const seekToLiveEdge = () => {
+            if (hls && video && !video.paused) {
+              const liveEdge = hls.liveSyncPosition;
+              if (liveEdge && video.currentTime < liveEdge - 0.3) {
+                console.log(`Seeking to live edge: ${liveEdge}`);
+                video.currentTime = liveEdge;
+              }
+            }
+          };
+          
+          // Periodically seek to live edge
+          const liveEdgeInterval = setInterval(seekToLiveEdge, 2000);
           
           video.play().catch(e => console.error("Autoplay failed:", e));
           
@@ -199,17 +257,36 @@ export default function CameraPage() {
             description: "Successfully connected to camera stream",
             variant: "default",
           });
+          
+          // Clean up event listeners and intervals
+          return () => {
+            video.removeEventListener('waiting', handleWaiting);
+            video.removeEventListener('playing', handlePlaying);
+            clearInterval(liveEdgeInterval);
+            clearInterval(playlistRefreshInterval);
+          };
         });
+        
         hlsRef.current = hls;
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = finalUrl;
+        // For Safari - add timestamp to prevent caching
+        const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
+        video.src = urlWithTimestamp;
+        video.preload = "auto";
+        
         video.addEventListener("loadedmetadata", () => { 
           setIsLoading(false); 
           setLocalIsConnected(true);
           setIsConnected(true);
+          
+          // Set video properties for low latency
+          video.preload = "auto";
+          video.muted = true; // Start muted to avoid autoplay issues
+          video.playbackRate = 1.05; // Play slightly faster to catch up
+          
           video.play().catch(e => console.error("Autoplay failed:", e));
           
-          // Show success toast but don't navigate away
+          // Show success toast
           toast({
             title: "Camera Connected",
             description: "Successfully connected to camera stream",

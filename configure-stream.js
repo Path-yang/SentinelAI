@@ -23,14 +23,18 @@ app.use(express.json());
 
 // Serve HLS output with aggressive caching disabled
 app.use('/hls', (req, res, next) => {
-  // Disable caching for m3u8 playlist files to ensure fresh content
-  if (req.path.endsWith('.m3u8')) {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  }
+  // Disable caching for all HLS files to ensure fresh content
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   next();
-}, express.static(path.join(__dirname, 'hls')));
+}, express.static(path.join(__dirname, 'hls'), {
+  // Set headers for all files to improve streaming
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Connection', 'keep-alive');
+  }
+}));
 
 // POST /api/configure-stream
 // body: { streamName, rtspUrl }
@@ -53,16 +57,43 @@ app.post('/api/configure-stream', async (req, res) => {
     const outDir = path.join(__dirname, 'hls', streamName);
     await mkdirp(outDir);
     
-    // spawn ffmpeg with ultra-low latency settings
+    // spawn ffmpeg with extreme low-latency settings
     console.log(`Starting FFmpeg for ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
+    
+    // Determine if we should use hardware acceleration
+    let hwaccel = [];
+    try {
+      // Check for macOS (VideoToolbox)
+      if (process.platform === 'darwin') {
+        hwaccel = ['-hwaccel', 'videotoolbox'];
+      }
+      // Check for NVIDIA GPU (Linux/Windows)
+      else if (fs.existsSync('/dev/nvidia0') || process.env.CUDA_VISIBLE_DEVICES) {
+        hwaccel = ['-hwaccel', 'cuda'];
+      }
+    } catch (err) {
+      console.log('Hardware acceleration not available, using software encoding');
+    }
+    
     const args = [
-      // Input options
-      '-fflags', 'nobuffer', // Reduce input buffering
-      '-flags', 'low_delay',  // Enable low delay flags
-      '-rtsp_transport', 'tcp', // Use TCP for more reliable streaming
-      '-rtsp_flags', 'prefer_tcp', // Prefer TCP for RTSP
-      '-analyzeduration', '1000000', // Reduce analyze time (in microseconds)
-      '-probesize', '32000', // Reduce probe size
+      // Global options
+      '-hide_banner',
+      '-loglevel', 'warning',
+      
+      // Input buffer options - extreme minimal buffering
+      '-fflags', '+discardcorrupt+nobuffer+fastseek',
+      '-flags', 'low_delay',
+      '-avioflags', 'direct',
+      
+      // Hardware acceleration if available
+      ...hwaccel,
+      
+      // RTSP specific options
+      '-rtsp_transport', 'tcp',
+      '-rtsp_flags', 'prefer_tcp+aggressive',
+      '-stimeout', '2000000', // 2 second timeout (in microseconds)
+      '-analyzeduration', '500000', // 0.5 seconds analysis (in microseconds)
+      '-probesize', '32000', // Minimal probe size
       
       // Authentication if needed
       ...(username ? ['-user_agent', 'SentinelAI'] : []),
@@ -71,39 +102,46 @@ app.post('/api/configure-stream', async (req, res) => {
         '-password', password
       ] : []),
       
-      // Input source
+      // Input source with minimal buffering
       '-i', rtspUrl,
       
-      // Video codec settings
-      '-c:v', 'libx264', // Use H.264 for compatibility
-      '-preset', 'ultrafast', // Fastest encoding
-      '-tune', 'zerolatency', // Optimize for zero latency
-      '-profile:v', 'baseline', // Use baseline profile for lower latency
+      // Video codec settings - optimized for latency over quality
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-tune', 'zerolatency',
+      '-profile:v', 'baseline',
       '-level', '3.0',
-      '-x264opts', 'no-scenecut', // Disable scene cut detection
+      '-x264opts', 'no-scenecut:vbv-maxrate=1000:vbv-bufsize=100:intra-refresh=1:slice-max-size=1500',
       
-      // GOP settings
-      '-g', '15', // Set keyframe interval to 15 frames
-      '-keyint_min', '15', // Minimum keyframe interval
-      '-force_key_frames', 'expr:gte(t,n_forced*1)', // Force keyframe every 1 second
+      // Reduce frame size for faster processing
+      '-vf', 'scale=iw/1.5:ih/1.5',
       
-      // Bitrate control
-      '-b:v', '800k', // Lower bitrate for faster transmission
-      '-bufsize', '800k', // Match buffer size to bitrate
-      '-maxrate', '1000k', // Maximum bitrate
+      // GOP settings - extremely small GOP
+      '-g', '10',
+      '-keyint_min', '5',
+      '-force_key_frames', 'expr:gte(t,n_forced*0.5)',
       
-      // Audio settings (minimal or disabled for lowest latency)
-      '-an', // Disable audio for lowest latency
+      // Bitrate control - lower quality for speed
+      '-b:v', '500k',
+      '-maxrate', '600k',
+      '-bufsize', '300k',
       
-      // HLS specific settings
+      // Disable audio completely
+      '-an',
+      
+      // Output format settings - extreme low latency HLS
       '-f', 'hls',
-      '-hls_time', '0.5', // Very short segments (0.5 seconds)
+      '-hls_time', '0.2', // Ultra short segments (200ms)
       '-hls_list_size', '2', // Keep only 2 segments in playlist
-      '-hls_flags', 'delete_segments+append_list+discont_start+omit_endlist',
-      '-hls_segment_type', 'mpegts', // Use mpegts segments for lower latency
+      '-hls_flags', 'delete_segments+append_list+discont_start+omit_endlist+independent_segments',
+      '-hls_segment_type', 'mpegts',
       '-hls_segment_filename', path.join(outDir, 'segment%03d.ts'),
-      '-hls_init_time', '0.5', // Initial segment duration
-      '-hls_allow_cache', '0', // Disable client-side caching
+      '-hls_init_time', '0.2',
+      '-hls_allow_cache', '0',
+      '-hls_playlist_type', 'event',
+      
+      // Add custom headers to m3u8 file
+      '-hls_base_url', `http://localhost:${PORT}/hls/${streamName}/`,
       
       // Output
       path.join(outDir, 'index.m3u8')
@@ -122,6 +160,9 @@ app.post('/api/configure-stream', async (req, res) => {
       console.log(`FFmpeg ${streamName} exited code=${code} sig=${signal}`);
       delete ffmpegProcs[streamName];
     });
+    
+    // Wait a moment to ensure FFmpeg has started generating segments
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // return HLS URL
     return res.json({ success: true, hlsUrl: `http://localhost:${PORT}/hls/${streamName}/index.m3u8` });
