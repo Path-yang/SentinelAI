@@ -8,12 +8,13 @@ import os
 import uuid
 
 class Event(BaseModel):
-    id: str
+    id: str = None
     camera_id: str
     type: str  # e.g., "fall", "immobility", "unusual_behavior"
     confidence: float  # 0.0 to 1.0
     timestamp: str
     description: Optional[str] = None
+    bounding_box: Optional[Dict[str, float]] = None  # x, y, width, height as normalized coordinates
 
 # In-memory storage for the prototype
 events: List[Dict] = []
@@ -68,6 +69,10 @@ async def create_event(event_data: Event):
     event_dict = event_data.dict()
     events.append(event_dict)
     
+    # Keep only the most recent 100 events
+    if len(events) > 100:
+        events.pop(0)
+    
     # Broadcast to all connected WebSocket clients
     await manager.broadcast(json.dumps({"type": "new_event", "data": event_dict}))
     
@@ -93,11 +98,16 @@ async def create_sample_event():
         type="fall",
         confidence=0.95,
         timestamp=datetime.now().isoformat(),
-        description="Possible fall detected in living room"
+        description="Possible fall detected in living room",
+        bounding_box={"x": 0.4, "y": 0.3, "width": 0.2, "height": 0.4}
     )
     
     event_dict = sample_event.dict()
     events.append(event_dict)
+    
+    # Keep only the most recent 100 events
+    if len(events) > 100:
+        events.pop(0)
     
     # Broadcast to all connected WebSocket clients
     await manager.broadcast(json.dumps({"type": "new_event", "data": event_dict}))
@@ -127,5 +137,5 @@ def startup_db_client():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 9000))
-    uvicorn.run("main:app", host="127.0.0.1", port=port, reload=True) 
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True) 

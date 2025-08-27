@@ -1,190 +1,286 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Video, Info, AlertCircle, Copy, Settings } from "lucide-react";
-import { MainLayout } from "@/components/layout/main-layout";
+import { useEffect, useState, useRef } from "react";
+import { ArrowLeft, Maximize2, Settings, Volume2, VolumeX } from "lucide-react";
+import Link from "next/link";
 import { VideoPlayer } from "@/components/video-player";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useToast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { useAppStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 export default function WatchPage() {
-  const [isTipsOpen, setIsTipsOpen] = useState(false);
-  const { toast } = useToast();
+  const cameras = useAppStore((state) => state.cameras);
+  const selectedCamera = useAppStore((state) => state.selectedCamera);
+  const setSelectedCamera = useAppStore((state) => state.setSelectedCamera);
   
-  // Get HLS URL from environment variable
-  const src = process.env.NEXT_PUBLIC_HLS_URL;
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [showControls, setShowControls] = useState(true);
+  const [streamQuality, setStreamQuality] = useState('auto');
+  const [showSettings, setShowSettings] = useState(false);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const copyHlsUrl = async () => {
-    if (!src) return;
-    
+  // Get the currently selected camera object
+  const currentCamera = cameras.find(c => c.id === selectedCamera) || cameras[0];
+
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const handleFullscreen = async () => {
+    if (!containerRef.current) return;
+
     try {
-      await navigator.clipboard.writeText(src);
-      toast({
-        title: "HLS URL copied",
-        description: "The stream URL has been copied to your clipboard.",
-      });
-    } catch (err) {
-      toast({
-        title: "Failed to copy",
-        description: "Could not copy URL to clipboard.",
-        variant: "destructive",
-      });
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await containerRef.current.requestFullscreen();
+      }
+    } catch (error) {
+      console.warn('Fullscreen request failed:', error);
     }
   };
 
-  if (!src) {
-    return (
-      <MainLayout>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Live Stream</h1>
-            <p className="text-muted-foreground">
-              Watch your live camera feed in real-time.
-            </p>
-          </div>
-        </div>
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
 
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Card className="max-w-md w-full">
-            <CardHeader className="text-center">
-              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <CardTitle>No Stream Configured</CardTitle>
-              <CardDescription>
-                Please set up your live video stream to start watching.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-sm space-y-2">
-                <p className="font-medium">To get started:</p>
-                <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                  <li>Create a <code className="bg-muted px-1 rounded">.env.local</code> file in the web app directory</li>
-                  <li>Add <code className="bg-muted px-1 rounded">NEXT_PUBLIC_HLS_URL=your_stream_url</code></li>
-                  <li>Restart the development server</li>
-                </ol>
-              </div>
-              
-              <div className="pt-4">
-                <Button asChild className="w-full">
-                  <a href="https://github.com/aler9/mediamtx" target="_blank" rel="noopener noreferrer">
-                    <Video className="w-4 h-4 mr-2" />
-                    Learn about MediaMTX
-                  </a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </MainLayout>
-    );
-  }
+  const toggleControls = () => {
+    setShowControls(!showControls);
+  };
+
+  const getQualityLabel = (quality: string) => {
+    switch (quality) {
+      case 'auto': return 'Auto';
+      case '1080p': return '1080p';
+      case '720p': return '720p';
+      case '480p': return '480p';
+      default: return 'Auto';
+    }
+  };
 
   return (
-    <MainLayout>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Live Stream</h1>
-          <p className="text-muted-foreground">
-            Watch your live camera feed in real-time.
-          </p>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={copyHlsUrl}>
-            <Copy className="w-4 h-4 mr-2" />
-            Copy URL
-          </Button>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center">
+          <Link href="/" className="flex items-center space-x-2">
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Dashboard</span>
+          </Link>
+          
+          <div className="ml-auto flex items-center space-x-2">
+            <Badge variant="outline" className="text-xs">
+              {currentCamera?.name || 'Camera Feed'}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleMute}
+            >
+              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleControls}
+            >
+              {showControls ? 'Hide' : 'Show'} Controls
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSettings(!showSettings)}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFullscreen}
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-4">
-        {/* Main video player */}
-        <div className="lg:col-span-3">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <VideoPlayer 
-              src={src} 
-              fullWidth 
-              className="aspect-video"
-            />
-          </motion.div>
-        </div>
+      {/* Main Content */}
+      <div className="container py-6">
+        <div className="grid gap-6 lg:grid-cols-4">
+          {/* Video Player */}
+          <div className="lg:col-span-3">
+            <div 
+              ref={containerRef}
+              className={cn(
+                "relative overflow-hidden bg-black rounded-2xl shadow-lg",
+                isFullscreen ? "fixed inset-0 z-50 rounded-none" : ""
+              )}
+            >
+              <VideoPlayer 
+                src={currentCamera?.stream_url || ''} 
+                autoPlay={true}
+                muted={isMuted}
+                controls={showControls}
+                fullWidth={true}
+                className="w-full h-full"
+              />
+              
+              {/* Overlay Controls */}
+              {showControls && (
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/50 backdrop-blur-sm rounded-lg p-3">
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="secondary" className="text-xs">
+                      LIVE
+                    </Badge>
+                    <span className="text-white text-sm">
+                      {currentCamera?.name || 'Camera Feed'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleMute}
+                      className="text-white hover:bg-white/20"
+                    >
+                      {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleFullscreen}
+                      className="text-white hover:bg-white/20"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
-        {/* Tips and info panel */}
-        <div className="space-y-4">
-          <Collapsible open={isTipsOpen} onOpenChange={setIsTipsOpen}>
+          {/* Sidebar */}
+          <div className="space-y-4">
+            {/* Camera Selection */}
             <Card>
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center justify-between">
+              <CardHeader>
+                <CardTitle className="text-lg">Cameras</CardTitle>
+                <CardDescription>
+                  Switch between different camera feeds
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {cameras.map((camera) => (
+                  <Button
+                    key={camera.id}
+                    variant={camera.id === selectedCamera ? "default" : "outline"}
+                    className="w-full justify-start"
+                    onClick={() => setSelectedCamera(camera.id)}
+                  >
                     <div className="flex items-center space-x-2">
-                      <Info className="h-5 w-5 text-muted-foreground" />
-                      <CardTitle className="text-lg">Tips</CardTitle>
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        camera.id === selectedCamera ? "bg-green-500" : "bg-gray-400"
+                      )} />
+                      <span>{camera.name}</span>
                     </div>
-                    <Settings className={`h-4 w-4 transition-transform ${isTipsOpen ? 'rotate-180' : ''}`} />
-                  </div>
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Settings */}
+            {showSettings && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Settings</CardTitle>
+                  <CardDescription>
+                    Adjust video playback settings
+                  </CardDescription>
                 </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-3 text-sm">
+                <CardContent className="space-y-4">
                   <div>
-                    <h4 className="font-medium mb-2">If video doesn't play:</h4>
-                    <ul className="space-y-1 text-muted-foreground">
-                      <li>• Check your internet connection</li>
-                      <li>• Verify the HLS URL is correct</li>
-                      <li>• Try refreshing the page</li>
-                      <li>• Check browser console for errors</li>
-                    </ul>
+                    <label className="text-sm font-medium">Stream Quality</label>
+                    <select
+                      value={streamQuality}
+                      onChange={(e) => setStreamQuality(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="1080p">1080p</option>
+                      <option value="720p">720p</option>
+                      <option value="480p">480p</option>
+                    </select>
                   </div>
                   
-                  <div>
-                    <h4 className="font-medium mb-2">For better performance:</h4>
-                    <ul className="space-y-1 text-muted-foreground">
-                      <li>• Use a wired connection</li>
-                      <li>• Close other bandwidth-heavy apps</li>
-                      <li>• Try LL-HLS for lower latency</li>
-                    </ul>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Mute Audio</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleMute}
+                    >
+                      {isMuted ? 'On' : 'Off'}
+                    </Button>
                   </div>
                   
-                  <div className="pt-2 border-t">
-                    <p className="text-xs text-muted-foreground">
-                      Current stream: <code className="bg-muted px-1 rounded text-xs">{src}</code>
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Show Controls</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleControls}
+                    >
+                      {showControls ? 'On' : 'Off'}
+                    </Button>
                   </div>
                 </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
+              </Card>
+            )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Stream Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status:</span>
-                <span className="flex items-center">
-                  <div className="h-2 w-2 rounded-full bg-green-500 mr-2" />
-                  Live
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Latency:</span>
-                <span>~1-2s</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Format:</span>
-                <span>HLS</span>
-              </div>
-            </CardContent>
-          </Card>
+            {/* Stream Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Stream Info</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Camera:</span>
+                  <span>{currentCamera?.name || 'Unknown'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Quality:</span>
+                  <span>{getQualityLabel(streamQuality)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Audio:</span>
+                  <span>{isMuted ? 'Muted' : 'On'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Status:</span>
+                  <Badge variant="outline" className="text-xs">
+                    <div className="w-2 h-2 rounded-full bg-green-500 mr-1" />
+                    Live
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-    </MainLayout>
+    </div>
   );
 } 

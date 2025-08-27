@@ -42,7 +42,7 @@ const initialCameras = [
   { id: 'camera_kitchen', name: 'Kitchen', stream_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
 ];
 
-export const useAppStore = create<AppState>((set, get) => {
+export const useAppStore = create<AppState>((set) => {
   // Get stored camera selection from localStorage
   const getStoredCameraSelection = () => {
     if (typeof window !== 'undefined') {

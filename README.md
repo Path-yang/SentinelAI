@@ -22,7 +22,6 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 - **Instant Alerts**: Receive notifications via WebSockets when anomalies are detected
 - **Intuitive Dashboard**: Monitor all cameras and review alerts in one place
 - **Responsive Design**: Works on desktop and mobile devices
-- **PWA Support**: Install as a standalone app on mobile devices
 - **Dark/Light Mode**: Choose your preferred theme
 
 ## 🛠 Tech Stack
@@ -39,15 +38,16 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 ### Backend
 - **FastAPI** (Python)
 - **WebSockets** for real-time communication
-- In-memory storage (for prototype)
+- **In-memory storage** (for prototype)
 
-### Testing & Quality
-- **Playwright** for end-to-end testing
+### ML
+- **PyTorch** for deep learning
+- **PyTorchVideo** for video models
+- **X3D** architecture for video classification
+- **OpenCV** for video processing
 
 ### Infrastructure
 - **pnpm** monorepo with workspaces
-- **Vercel** ready for frontend deployment
-- **Render/Heroku** ready for backend deployment
 
 ## 📋 Setup Instructions
 
@@ -93,7 +93,8 @@ The live video feature uses the `NEXT_PUBLIC_HLS_URL` environment variable to sp
 **Example configuration in `.env.local`:**
 ```bash
 NEXT_PUBLIC_HLS_URL=http://localhost:8084/mystream/index.m3u8
-NEXT_PUBLIC_API_URL=http://127.0.0.1:10000
+NEXT_PUBLIC_API_URL=http://localhost:10000
+NEXT_PUBLIC_WS_URL=ws://localhost:10000/ws/alerts
 ```
 
 ### Converting RTSP to HLS with MediaMTX
@@ -112,12 +113,6 @@ docker run -it --rm \
   aler9/mediamtx
 ```
 
-**Manual Installation:**
-```bash
-# Download from https://github.com/aler9/mediamtx/releases
-# Extract and run with your configuration
-```
-
 #### 2. Configure Your Stream
 
 Create a `mediamtx.yml` configuration file:
@@ -130,12 +125,6 @@ paths:
     sourceProtocol: tcp
 ```
 
-**Common RTSP URL formats:**
-- Generic: `rtsp://USER:PASS@CAMERA_IP:554/stream1`
-- Hikvision: `rtsp://USER:PASS@CAMERA_IP:554/Streaming/Channels/101`
-- Dahua: `rtsp://USER:PASS@CAMERA_IP:554/cam/realmonitor?channel=1&subtype=0`
-- Axis: `rtsp://USER:PASS@CAMERA_IP:554/axis-media/media.amp`
-
 #### 3. Access Your HLS Stream
 
 Once MediaMTX is running, your HLS stream will be available at:
@@ -143,92 +132,68 @@ Once MediaMTX is running, your HLS stream will be available at:
 http://YOUR_SERVER_IP:8084/mystream/index.m3u8
 ```
 
-### Troubleshooting
+## 🤖 ML Model Training
 
-**Common Issues:**
+### Dataset Preparation
 
-1. **Blank video player:**
-   - Check if MediaMTX is running: `curl http://localhost:8084/mystream/index.m3u8`
-   - Verify camera credentials and IP address
-   - Check firewall settings
-
-2. **CORS errors:**
-   - Ensure MediaMTX is configured to allow your domain
-   - Add CORS headers in MediaMTX configuration
-
-3. **High latency:**
-   - Use wired network connections
-   - Lower camera resolution/framerate
-   - Enable LL-HLS for lower latency
-
-4. **Connection refused:**
-   - Verify MediaMTX is running on correct ports
-   - Check if ports are blocked by firewall
-   - Ensure camera is accessible from MediaMTX server
-
-**Validation:**
-- Test your HLS URL in VLC: `vlc http://localhost:8084/mystream/index.m3u8`
-- Check MediaMTX logs for connection errors
-- Verify camera stream is working with RTSP client
-
-### Development
-
-1. Start the development servers
-```bash
-# From the root directory
-pnpm dev:all
+1. Place your videos in the appropriate directories:
+```
+/datasets/fall/    # Fall videos
+/datasets/normal/  # Normal videos
 ```
 
-2. Or start individual services
+2. Generate dataset splits:
 ```bash
-# Frontend only
+python ml/create_dataset_split.py --data_dir datasets --output_dir ml
+```
+
+### Training
+
+Train the model:
+```bash
+python ml/train_video_cls.py --train ml/train.csv --val ml/val.csv --epochs 5 --model x3d_m --num_classes 2
+```
+
+### Evaluation
+
+Evaluate the model:
+```bash
+python ml/eval_video_cls.py --checkpoint ckpt.pth --val ml/val.csv
+```
+
+### Export
+
+Export the model for inference:
+```bash
+python ml/export_video_cls.py --checkpoint ckpt.pth
+```
+
+## 🚀 Running the Application
+
+### Start the Backend
+
+```bash
+cd apps/backend
+source venv/bin/activate
+python simple_server.py
+```
+
+### Start the Frontend
+
+```bash
 pnpm dev:web
-
-# Backend only
-pnpm dev:backend
 ```
 
-3. Access the application
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+### Start the Stream Processor
 
-## 📱 Usage Guide
+```bash
+cd ml
+API_BASE=http://localhost:10000 RTSP_URL="rtsp://<camera-ip>/stream" CAMERA_ID=cam-001 python ml/stream_poster.py
+```
 
-### Dashboard
+### Access the Dashboard
 
-![Dashboard Screenshot](https://placehold.co/800x450/1a1a2e/ffffff?text=Dashboard+Screenshot)
-
-The dashboard provides an overview of your system:
-- Live camera feed with the ability to switch between cameras
-- Recent alerts panel showing anomalies detected
-- Statistics cards showing system status
-
-### Camera Management
-
-![Cameras Screenshot](https://placehold.co/800x450/1a1a2e/ffffff?text=Cameras+Screenshot)
-
-The cameras page allows you to:
-- View all connected cameras
-- See camera-specific alerts
-- Monitor camera status
-
-### Settings
-
-![Settings Screenshot](https://placehold.co/800x450/1a1a2e/ffffff?text=Settings+Screenshot)
-
-Customize your experience:
-- Toggle between light and dark mode
-- View privacy information
-
-## 🔮 Roadmap
-
-- **AI Model Integration**: Replace placeholder detection with actual ML models
-- **Mobile App**: Develop native mobile applications
-- **Camera Management**: Add, remove and configure cameras through the UI
-- **Alert Rules**: Create custom alert conditions and notification preferences
-- **User Management**: Multi-user support with different permission levels
-- **Historical Analysis**: Advanced reporting and trend analysis
+Open http://localhost:3000/dashboard to see the live stream, alerts panel, toast notifications, and overlay rectangle when a fall is detected.
 
 ## 📄 License
 

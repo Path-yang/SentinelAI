@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "./venv/bin/uvicorn main:app --reload --host 127.0.0.1 --port 9000",
-    "start": "uvicorn main:app --host 127.0.0.1 --port 9000"
+    "dev": "python main.py",
+    "build": "echo 'No build step required'"
   }
 } 

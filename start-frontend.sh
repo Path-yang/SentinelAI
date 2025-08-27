@@ -1,7 +1,11 @@
 #!/bin/bash
 
-echo "🚀 Starting SentinelAI Frontend..."
-echo "🌐 Frontend will be available at: http://localhost:5001"
+# Start script for SentinelAI frontend
+echo "🚀 Starting SentinelAI frontend..."
 
-cd apps/web
-npx next dev -p 5001 
+# Start frontend server
+echo "🌐 Starting frontend server on http://localhost:3000"
+pnpm dev:web
+
+# Keep terminal open
+echo "👋 Frontend stopped" 

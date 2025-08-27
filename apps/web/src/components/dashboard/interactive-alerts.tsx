@@ -1,112 +1,41 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useState } from "react";
 import { 
   Bell, 
-  BellOff, 
   Filter, 
-  Search, 
-  Clock, 
-  MapPin, 
-  AlertTriangle,
-  CheckCircle,
-  X,
-  RefreshCw,
+  RefreshCw, 
+  MoreHorizontal, 
+  CheckCircle, 
+  XCircle, 
   Download,
   Eye,
-  EyeOff
+  Clock,
+  AlertTriangle,
+  Info
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAppStore, Event } from "@/lib/store";
 import { cn } from "@/lib/utils";
-
-interface AlertFilters {
-  type: string[];
-  severity: string[];
-  camera: string[];
-  timeRange: 'all' | '1h' | '24h' | '7d';
-}
 
 export function InteractiveAlerts() {
   const events = useAppStore((state) => state.events);
   const cameras = useAppStore((state) => state.cameras);
-  const clearEvents = useAppStore((state) => state.clearEvents);
   
-  const [filters, setFilters] = useState<AlertFilters>({
-    type: [],
-    severity: [],
-    camera: [],
-    timeRange: 'all'
-  });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showNotifications, setShowNotifications] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState<Event | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterCamera, setFilterCamera] = useState<string>('all');
 
-  // Get unique alert types and cameras for filters
-  const alertTypes = [...new Set(events.map(e => e.type))];
-  const cameraIds = [...new Set(events.map(e => e.camera_id))];
-
-  // Filter events based on current filters
-  const filteredEvents = events.filter(event => {
-    // Type filter
-    if (filters.type.length > 0 && !filters.type.includes(event.type)) {
-      return false;
+  const handleFilterChange = (type: string, value: string) => {
+    if (type === 'event') {
+      setFilterType(value);
+    } else if (type === 'camera') {
+      setFilterCamera(value);
     }
-    
-    // Camera filter
-    if (filters.camera.length > 0 && !filters.camera.includes(event.camera_id)) {
-      return false;
-    }
-    
-    // Severity filter (based on confidence)
-    if (filters.severity.length > 0) {
-      const severity = event.confidence > 0.8 ? 'high' : event.confidence > 0.5 ? 'medium' : 'low';
-      if (!filters.severity.includes(severity)) {
-        return false;
-      }
-    }
-    
-    // Time range filter
-    if (filters.timeRange !== 'all') {
-      const eventTime = new Date(event.timestamp);
-      const now = new Date();
-      const diffHours = (now.getTime() - eventTime.getTime()) / (1000 * 60 * 60);
-      
-      switch (filters.timeRange) {
-        case '1h':
-          if (diffHours > 1) return false;
-          break;
-        case '24h':
-          if (diffHours > 24) return false;
-          break;
-        case '7d':
-          if (diffHours > 24 * 7) return false;
-          break;
-      }
-    }
-    
-    // Search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const camera = cameras.find(c => c.id === event.camera_id);
-      const searchText = `${event.type} ${event.description} ${camera?.name || ''}`.toLowerCase();
-      if (!searchText.includes(query)) {
-        return false;
-      }
-    }
-    
-    return true;
-  });
-
-  const handleFilterChange = (filterType: keyof AlertFilters, value: any) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: value
-    }));
   };
 
   const handleAlertAction = async (action: string, event: Event) => {
@@ -162,24 +91,31 @@ export function InteractiveAlerts() {
     setIsRefreshing(false);
   };
 
+  // Filter events based on selected filters
+  const filteredEvents = events.filter(event => {
+    if (filterType !== 'all' && event.type !== filterType) return false;
+    if (filterCamera !== 'all' && event.camera_id !== filterCamera) return false;
+    return true;
+  });
+
+  // Get unique event types and camera IDs for filters
+  const eventTypes = Array.from(new Set(events.map(e => e.type)));
+  const cameraIds = Array.from(new Set(events.map(e => e.camera_id)));
+
   return (
     <div className="space-y-4">
       {/* Alert Controls */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div>
               <CardTitle className="text-lg">Recent Alerts</CardTitle>
-              <Badge variant="secondary">{filteredEvents.length}</Badge>
+              <CardDescription>
+                {filteredEvents.length} alerts in the last 24 hours
+              </CardDescription>
             </div>
+            
             <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowNotifications(!showNotifications)}
-              >
-                {showNotifications ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -188,223 +124,212 @@ export function InteractiveAlerts() {
               >
                 <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
               </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Filter className="w-4 h-4 mr-2" />
+                    Filter
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="p-2">
+                    <div className="mb-2">
+                      <label className="text-xs font-medium text-muted-foreground">Event Type</label>
+                      <select
+                        value={filterType}
+                        onChange={(e) => handleFilterChange('event', e.target.value)}
+                        className="mt-1 w-full text-xs border rounded px-2 py-1"
+                      >
+                        <option value="all">All Types</option>
+                        {eventTypes.map(type => (
+                          <option key={type} value={type}>
+                            {type.charAt(0).toUpperCase() + type.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Camera</label>
+                      <select
+                        value={filterCamera}
+                        onChange={(e) => handleFilterChange('camera', e.target.value)}
+                        className="mt-1 w-full text-xs border rounded px-2 py-1"
+                      >
+                        <option value="all">All Cameras</option>
+                        {cameraIds.map(cameraId => {
+                          const camera = cameras.find(c => c.id === cameraId);
+                          return (
+                            <option key={cameraId} value={cameraId}>
+                              {camera?.name || cameraId}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Search and Filters */}
-          <div className="flex space-x-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search alerts..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+        
+        <CardContent className="space-y-3">
+          {filteredEvents.length === 0 ? (
+            <div className="text-center py-8">
+              <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No alerts found</p>
+              <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
             </div>
-            <Button variant="outline" size="sm">
-              <Filter className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* Filter Chips */}
-          <div className="flex flex-wrap gap-2">
-            {filters.type.map(type => (
-              <Badge
-                key={type}
-                variant="secondary"
-                className="cursor-pointer"
-                onClick={() => handleFilterChange('type', filters.type.filter(t => t !== type))}
+          ) : (
+            filteredEvents.slice(0, 10).map((event) => (
+              <div
+                key={event.id}
+                className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
               >
-                {type} <X className="w-3 h-3 ml-1" />
-              </Badge>
-            ))}
-            {filters.camera.map(cameraId => (
-              <Badge
-                key={cameraId}
-                variant="secondary"
-                className="cursor-pointer"
-                onClick={() => handleFilterChange('camera', filters.camera.filter(c => c !== cameraId))}
-              >
-                {cameras.find(c => c.id === cameraId)?.name || cameraId} <X className="w-3 h-3 ml-1" />
-              </Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Alerts List */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="max-h-[400px] overflow-y-auto">
-            {filteredEvents.length > 0 ? (
-              <div className="divide-y">
-                {filteredEvents.slice(0, 10).map((event, index) => {
-                  const camera = cameras.find(c => c.id === event.camera_id);
-                  
-                  return (
-                    <div
-                      key={event.id}
-                      className={cn(
-                        "p-4 hover:bg-muted/50 transition-colors cursor-pointer",
-                        selectedAlert?.id === event.id && "bg-muted"
-                      )}
-                      onClick={() => setSelectedAlert(event)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-3 flex-1">
-                          <div className="relative">
-                            <AlertTriangle className="w-5 h-5 text-red-500" />
-                            <div className={cn(
-                              "absolute -top-1 -right-1 w-2 h-2 rounded-full",
-                              getSeverityColor(event.confidence)
-                            )} />
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="font-medium capitalize">{event.type}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {getSeverityText(event.confidence)}
-                              </Badge>
-                            </div>
-                            
-                            <p className="text-sm text-muted-foreground mb-2">
-                              {event.description}
-                            </p>
-                            
-                            <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                              <div className="flex items-center space-x-1">
-                                <MapPin className="w-3 h-3" />
-                                <span>{camera?.name || event.camera_id}</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <Clock className="w-3 h-3" />
-                                <span>{formatTimeAgo(event.timestamp)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
+                {/* Severity indicator */}
+                <div className={cn(
+                  "w-3 h-3 rounded-full mt-1 flex-shrink-0",
+                  getSeverityColor(event.confidence)
+                )} />
+                
+                {/* Alert content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 className="font-medium text-sm truncate">
+                          {event.type.charAt(0).toUpperCase() + event.type.slice(1)} Detected
+                        </h4>
+                        <Badge variant="outline" className="text-xs">
+                          {getSeverityText(event.confidence)}
+                        </Badge>
+                      </div>
+                      
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {event.description || `Anomaly detected on ${cameras.find(c => c.id === event.camera_id)?.name || event.camera_id}`}
+                      </p>
+                      
+                      <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                         <div className="flex items-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAlertAction('acknowledge', event);
-                            }}
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAlertAction('export', event);
-                            }}
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
+                          <Clock className="w-3 h-3" />
+                          <span>{formatTimeAgo(event.timestamp)}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <span>Confidence: {Math.round(event.confidence * 100)}%</span>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                    
+                    {/* Action menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleAlertAction('view', event)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleAlertAction('acknowledge', event)}>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Acknowledge
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleAlertAction('dismiss', event)}>
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Dismiss
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleAlertAction('export', event)}>
+                          <Download className="w-4 h-4 mr-2" />
+                          Export
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="text-center py-12">
-                <AlertTriangle className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-1">No alerts found</h3>
-                <p className="text-sm text-muted-foreground">
-                  {searchQuery || filters.type.length > 0 || filters.camera.length > 0
-                    ? 'Try adjusting your filters'
-                    : 'Alerts will appear here when anomalies are detected'
-                  }
-                </p>
-              </div>
-            )}
-          </div>
+            ))
+          )}
+          
+          {filteredEvents.length > 10 && (
+            <div className="text-center pt-2">
+              <Button variant="outline" size="sm">
+                View All Alerts ({filteredEvents.length})
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Alert Details Modal */}
       {selectedAlert && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Alert Details</CardTitle>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Alert Details</h3>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedAlert(null)}
               >
-                <X className="w-4 h-4" />
+                <XCircle className="w-4 h-4" />
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+            
+            <div className="space-y-3">
               <div>
-                <h4 className="font-medium mb-2">Event Information</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Type:</span>
-                    <span className="ml-2 capitalize">{selectedAlert.type}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Confidence:</span>
-                    <span className="ml-2">{(selectedAlert.confidence * 100).toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Camera:</span>
-                    <span className="ml-2">{cameras.find(c => c.id === selectedAlert.camera_id)?.name || selectedAlert.camera_id}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Time:</span>
-                    <span className="ml-2">{new Date(selectedAlert.timestamp).toLocaleString()}</span>
-                  </div>
-                </div>
+                <label className="text-sm font-medium text-muted-foreground">Type</label>
+                <p className="text-sm">{selectedAlert.type}</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Camera</label>
+                <p className="text-sm">
+                  {cameras.find(c => c.id === selectedAlert.camera_id)?.name || selectedAlert.camera_id}
+                </p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Confidence</label>
+                <p className="text-sm">{Math.round(selectedAlert.confidence * 100)}%</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Time</label>
+                <p className="text-sm">{new Date(selectedAlert.timestamp).toLocaleString()}</p>
               </div>
               
               {selectedAlert.description && (
                 <div>
-                  <h4 className="font-medium mb-2">Description</h4>
-                  <p className="text-sm text-muted-foreground">{selectedAlert.description}</p>
+                  <label className="text-sm font-medium text-muted-foreground">Description</label>
+                  <p className="text-sm">{selectedAlert.description}</p>
                 </div>
               )}
-              
-              {selectedAlert.metadata && (
-                <div>
-                  <h4 className="font-medium mb-2">Metadata</h4>
-                  <pre className="text-xs bg-muted p-2 rounded overflow-auto">
-                    {JSON.stringify(selectedAlert.metadata, null, 2)}
-                  </pre>
-                </div>
-              )}
-              
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => handleAlertAction('acknowledge', selectedAlert)}
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Acknowledge
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleAlertAction('export', selectedAlert)}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </div>
             </div>
-          </CardContent>
-        </Card>
+            
+            <div className="flex space-x-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => handleAlertAction('acknowledge', selectedAlert)}
+                className="flex-1"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Acknowledge
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleAlertAction('export', selectedAlert)}
+                className="flex-1"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

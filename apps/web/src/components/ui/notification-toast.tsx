@@ -1,30 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Bell, X, Volume2, VolumeX, CheckCircle, AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Bell, 
-  AlertTriangle, 
-  CheckCircle, 
-  X, 
-  Volume2, 
-  VolumeX,
-  Settings,
-  Zap
-} from "lucide-react";
-import { useAppStore, Event } from "@/lib/store";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 interface Notification {
   id: string;
-  type: 'alert' | 'info' | 'success' | 'warning';
+  type: 'alert' | 'warning' | 'info';
   title: string;
   message: string;
   timestamp: Date;
-  cameraId?: string;
-  eventId?: string;
+  cameraId: string;
+  eventId: string;
   isRead: boolean;
 }
 
@@ -95,7 +85,7 @@ export function NotificationToast() {
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.2);
     } catch (error) {
-      console.log('Could not play notification sound');
+      console.warn('Could not play notification sound:', error);
     }
   };
 
@@ -109,33 +99,20 @@ export function NotificationToast() {
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
   };
 
-  const removeNotification = (notificationId: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+  const clearAll = () => {
+    setNotifications([]);
   };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'alert':
-        return <AlertTriangle className="w-5 h-5 text-red-500" />;
+        return <AlertTriangle className="w-4 h-4 text-red-500" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
-      case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
+      case 'info':
+        return <Info className="w-4 h-4 text-blue-500" />;
       default:
-        return <Bell className="w-5 h-5 text-blue-500" />;
-    }
-  };
-
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case 'alert':
-        return 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950';
-      case 'warning':
-        return 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950';
-      case 'success':
-        return 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950';
-      default:
-        return 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950';
+        return <Bell className="w-4 h-4" />;
     }
   };
 
@@ -143,21 +120,19 @@ export function NotificationToast() {
     const now = new Date();
     const diffMs = now.getTime() - timestamp.getTime();
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    const diffSeconds = Math.floor(diffMs / 1000);
-
-    if (diffSeconds < 60) return 'Just now';
+    
+    if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    return `${Math.floor(diffMinutes / 60)}h ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    return `${diffHours}h ago`;
   };
 
-  const recentNotifications = notifications
-    .slice(-5) // Show last 5 notifications
-    .reverse(); // Most recent first
-
-  if (!showNotifications) return null;
+  if (!showNotifications || notifications.length === 0) {
+    return null;
+  }
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+    <div className="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm">
       {/* Notification Controls */}
       <div className="flex items-center justify-between bg-background border rounded-lg p-2 shadow-lg">
         <div className="flex items-center space-x-2">
@@ -175,119 +150,111 @@ export function NotificationToast() {
             variant="ghost"
             size="sm"
             onClick={() => setIsMuted(!isMuted)}
-            className="h-8 w-8 p-0"
+            className="h-6 w-6 p-0"
           >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            {isMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
           </Button>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={markAllAsRead}
-            className="h-8 w-8 p-0"
-            disabled={unreadCount === 0}
-          >
-            <CheckCircle className="w-4 h-4" />
-          </Button>
-          
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setShowNotifications(false)}
-            className="h-8 w-8 p-0"
+            className="h-6 w-6 p-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3 h-3" />
           </Button>
         </div>
       </div>
 
       {/* Notification List */}
       <div className="space-y-2 max-h-96 overflow-y-auto">
-        {recentNotifications.length > 0 ? (
-          recentNotifications.map((notification) => (
-            <Card
-              key={notification.id}
-              className={cn(
-                "transition-all duration-200 hover:shadow-md cursor-pointer",
-                getNotificationColor(notification.type),
-                !notification.isRead && "ring-2 ring-primary/20"
-              )}
-              onClick={() => markAsRead(notification.id)}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0 mt-0.5">
-                    {getNotificationIcon(notification.type)}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="text-sm font-medium text-foreground">
-                        {notification.title}
-                      </h4>
-                      <div className="flex items-center space-x-1">
-                        <span className="text-xs text-muted-foreground">
-                          {formatTimeAgo(notification.timestamp)}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeNotification(notification.id);
-                          }}
-                          className="h-6 w-6 p-0"
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <p className="text-sm text-muted-foreground mb-2">
+        {notifications.slice(0, 5).map((notification) => (
+          <div
+            key={notification.id}
+            className={cn(
+              "bg-background border rounded-lg p-3 shadow-lg transition-all",
+              !notification.isRead && "ring-2 ring-primary/20"
+            )}
+          >
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 mt-0.5">
+                {getNotificationIcon(notification.type)}
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium truncate">
+                      {notification.title}
+                    </h4>
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                       {notification.message}
                     </p>
-                    
-                    {notification.cameraId && (
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className="text-xs">
-                          {cameras.find(c => c.id === notification.cameraId)?.name || notification.cameraId}
-                        </Badge>
-                        {notification.type === 'alert' && (
-                          <Badge variant="destructive" className="text-xs">
-                            <Zap className="w-3 h-3 mr-1" />
-                            High Priority
-                          </Badge>
-                        )}
-                      </div>
+                    <div className="flex items-center space-x-2 mt-2 text-xs text-muted-foreground">
+                      <span>{formatTimeAgo(notification.timestamp)}</span>
+                      <span>•</span>
+                      <span>
+                        {cameras.find(c => c.id === notification.cameraId)?.name || notification.cameraId}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-1 ml-2">
+                    {!notification.isRead && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => markAsRead(notification.id)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                      </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setNotifications(prev => prev.filter(n => n.id !== notification.id));
+                      }}
+                      className="h-6 w-6 p-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <Card className="bg-muted/50">
-            <CardContent className="p-4 text-center">
-              <Bell className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No recent notifications</p>
-            </CardContent>
-          </Card>
-        )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Show More Button */}
-      {notifications.length > 5 && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => {
-            // This could open a full notifications panel
-            console.log('Show all notifications');
-          }}
-        >
-          View All ({notifications.length})
-        </Button>
+      {/* Action Buttons */}
+      {notifications.length > 0 && (
+        <div className="flex items-center justify-between bg-background border rounded-lg p-2 shadow-lg">
+          <div className="flex space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={markAllAsRead}
+              className="text-xs"
+            >
+              Mark All Read
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearAll}
+              className="text-xs"
+            >
+              Clear All
+            </Button>
+          </div>
+          
+          {notifications.length > 5 && (
+            <Button variant="link" size="sm" className="text-xs">
+              View All ({notifications.length})
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

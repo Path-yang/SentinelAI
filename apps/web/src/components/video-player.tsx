@@ -1,248 +1,198 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Loader2, Maximize2, Copy, RefreshCw } from 'lucide-react';
-import Hls from 'hls.js';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { LatencyBadge } from '@/components/ui/latency-badge';
-import { canUseNativeHls, initHlsInstance, retryWithDelay } from '@/lib/hlsSupport';
-import { useToast } from '@/components/ui/use-toast';
+import { useEffect, useRef, useState } from "react";
+import Hls from "hls.js";
+import { useAlertsStore, Alert, BoundingBox } from "@/store/alerts-store";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface VideoPlayerProps {
   src: string;
+  className?: string;
   autoPlay?: boolean;
   muted?: boolean;
   controls?: boolean;
-  posterUrl?: string;
-  fullWidth?: boolean;
-  className?: string;
-  showLatencyBadge?: boolean;
-  showCopyButton?: boolean;
 }
 
-export function VideoPlayer({ 
-  src, 
-  autoPlay = true, 
-  muted = true, 
-  controls = true, 
-  posterUrl,
-  fullWidth = false, 
-  className = '',
-  showLatencyBadge = true,
-  showCopyButton = true
+export function VideoPlayer({
+  src,
+  className,
+  autoPlay = true,
+  muted = true,
+  controls = true,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const { toast } = useToast();
+  const [currentBoundingBox, setCurrentBoundingBox] = useState<BoundingBox | null>(null);
+  const [showBoundingBox, setShowBoundingBox] = useState(false);
+  const { currentAlert } = useAlertsStore();
 
-  const maxRetries = 3;
-
-  const handleError = useCallback((errorMessage: string) => {
-    setError(errorMessage);
-    setLoading(false);
-  }, []);
-
-  const handleReady = useCallback(() => {
-    setIsReady(true);
-    setLoading(false);
-    setError(null);
-    setRetryCount(0);
-  }, []);
-
-  const copyHlsUrl = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(src);
-      toast({
-        title: "HLS URL copied",
-        description: "The stream URL has been copied to your clipboard.",
-      });
-    } catch (err) {
-      toast({
-        title: "Failed to copy",
-        description: "Could not copy URL to clipboard.",
-        variant: "destructive",
-      });
-    }
-  }, [src, toast]);
-
-  const retry = useCallback(async () => {
-    if (retryCount >= maxRetries) {
-      handleError('Stream unavailable. Check HLS URL or network.');
-      return;
-    }
-
-    setRetryCount(prev => prev + 1);
-    setError(null);
-    setLoading(true);
-
-    try {
-      await retryWithDelay(() => {
-        if (!videoRef.current) return;
-        
-        // Clean up existing HLS instance
-        if (hlsRef.current) {
-          hlsRef.current.destroy();
-          hlsRef.current = null;
-        }
-
-        // Reset video element
-        videoRef.current.src = '';
-        videoRef.current.load();
-
-        // Initialize new HLS instance
-        if (canUseNativeHls(videoRef.current)) {
-          videoRef.current.src = src;
-          videoRef.current.addEventListener('loadedmetadata', handleReady, { once: true });
-          videoRef.current.addEventListener('error', () => handleError('Failed to load video'), { once: true });
-        } else {
-          hlsRef.current = initHlsInstance(src, videoRef.current, handleError, handleReady);
-        }
-      }, 1, 1000 * retryCount);
-    } catch (err) {
-      handleError('Failed to retry connection');
-    }
-  }, [retryCount, maxRetries, src, handleError, handleReady]);
-
+  // Handle HLS video loading
   useEffect(() => {
-    if (!src) {
-      handleError('No video source provided');
-      return;
-    }
+    const video = videoRef.current;
+    if (!video) return;
 
-    if (!videoRef.current) return;
+    let hls: Hls | null = null;
 
-    setLoading(true);
-    setError(null);
-    setIsReady(false);
+    const setupHls = () => {
+      if (Hls.isSupported()) {
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+        });
 
-    if (canUseNativeHls(videoRef.current)) {
-      // Use native HLS support (Safari, iOS)
-      videoRef.current.src = src;
-      videoRef.current.addEventListener('loadedmetadata', handleReady, { once: true });
-      videoRef.current.addEventListener('error', () => handleError('Failed to load video'), { once: true });
-    } else {
-      // Use hls.js for other browsers
-      hlsRef.current = initHlsInstance(src, videoRef.current, handleError, handleReady);
-    }
+        hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+          console.log("HLS: Media attached");
+        });
 
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log("HLS: Manifest parsed");
+          setIsLoading(false);
+          if (autoPlay) {
+            video.play().catch((e) => console.error("Error playing video:", e));
+          }
+        });
+
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error("HLS: Fatal network error", data);
+                setError("Network error. Trying to recover...");
+                hls?.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error("HLS: Fatal media error", data);
+                setError("Media error. Trying to recover...");
+                hls?.recoverMediaError();
+                break;
+              default:
+                console.error("HLS: Fatal error", data);
+                setError("Could not load video stream");
+                hls?.destroy();
+                break;
+            }
+          }
+        });
+
+        hls.loadSource(src);
+        hls.attachMedia(video);
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // For Safari
+        video.src = src;
+        video.addEventListener("loadedmetadata", () => {
+          setIsLoading(false);
+          if (autoPlay) {
+            video.play().catch((e) => console.error("Error playing video:", e));
+          }
+        });
+      } else {
+        setError("HLS is not supported in this browser");
       }
     };
-  }, [src, handleError, handleReady]);
 
-  const handleFullscreen = useCallback(() => {
-    if (!videoRef.current) return;
-    
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      videoRef.current.requestFullscreen().catch(err => {
-        console.warn('Fullscreen request failed:', err);
-      });
+    setupHls();
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [src, autoPlay]);
+
+  // Handle alerts and bounding box display
+  useEffect(() => {
+    if (currentAlert?.bounding_box) {
+      setCurrentBoundingBox(currentAlert.bounding_box);
+      setShowBoundingBox(true);
+
+      // Hide bounding box after 5 seconds
+      const timer = setTimeout(() => {
+        setShowBoundingBox(false);
+      }, 5000);
+
+      return () => clearTimeout(timer);
     }
+  }, [currentAlert]);
+
+  // Listen for custom alert events
+  useEffect(() => {
+    const handleAlert = (event: Event) => {
+      const alert = (event as CustomEvent<Alert>).detail;
+      if (alert.bounding_box) {
+        setCurrentBoundingBox(alert.bounding_box);
+        setShowBoundingBox(true);
+
+        // Hide bounding box after 5 seconds
+        setTimeout(() => {
+          setShowBoundingBox(false);
+        }, 5000);
+      }
+    };
+
+    window.addEventListener("sentinelai:alert", handleAlert);
+
+    return () => {
+      window.removeEventListener("sentinelai:alert", handleAlert);
+    };
   }, []);
 
-  if (!src) {
-    return (
-      <div className={`relative overflow-hidden bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-md ${fullWidth ? 'w-full' : 'w-full md:w-2/3'} ${className}`}>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Alert className="max-w-md">
-            <AlertDescription>
-              No video source provided. Please set the NEXT_PUBLIC_HLS_URL environment variable.
-            </AlertDescription>
-          </Alert>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={`relative overflow-hidden bg-black rounded-2xl shadow-md ${fullWidth ? 'w-full' : 'w-full md:w-2/3'} ${className}`}>
-      {/* Loading skeleton */}
-      {loading && (
+    <div className="relative overflow-hidden bg-black rounded-2xl shadow-md w-full">
+      {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
           <div className="flex flex-col items-center space-y-4">
             <div className="animate-pulse">
-              <Loader2 className="w-12 h-12 animate-spin text-gray-400" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-12 h-12 animate-spin text-gray-400"
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
             </div>
-            <div className="text-gray-400 text-sm">Connecting to stream...</div>
+            <div className="text-gray-400 text-sm">
+              {error ? error : "Connecting to stream..."}
+            </div>
           </div>
         </div>
       )}
-      
-      {/* Error state */}
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-90">
-          <div className="text-center p-6 max-w-md">
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-            <Button 
-              onClick={retry} 
-              disabled={retryCount >= maxRetries}
-              className="w-full"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              {retryCount >= maxRetries ? 'Max retries reached' : `Retry (${retryCount}/${maxRetries})`}
-            </Button>
-          </div>
-        </div>
-      )}
-      
-      {/* Video element */}
-      <video 
+
+      <video
         ref={videoRef}
-        className="w-full h-full" 
+        className={cn("w-full h-full", className)}
         muted={muted}
         playsInline
         autoPlay={autoPlay}
         controls={controls}
-        poster={posterUrl}
-        onLoadedData={() => setLoading(false)}
-        onError={() => handleError('Failed to load video')}
         aria-label="Live video stream"
-        // Low-latency optimizations
         preload="metadata"
-        disablePictureInPicture={false}
-        disableRemotePlayback={false}
       />
-      
-      {/* Latency badge */}
-      {showLatencyBadge && isReady && (
-        <LatencyBadge />
-      )}
-      
-      {/* Fullscreen button */}
-      <Button
-        variant="secondary"
-        size="icon"
-        onClick={handleFullscreen}
-        className="absolute top-3 right-3 z-10 bg-black/70 text-white border-0 hover:bg-black/80"
-        aria-label="Toggle fullscreen"
-      >
-        <Maximize2 className="w-4 h-4" />
-      </Button>
-      
-      {/* Copy URL button */}
-      {showCopyButton && (
-        <Button
-          variant="secondary"
-          size="icon"
-          onClick={copyHlsUrl}
-          className="absolute top-3 right-12 z-10 bg-black/70 text-white border-0 hover:bg-black/80"
-          aria-label="Copy HLS URL"
-        >
-          <Copy className="w-4 h-4" />
-        </Button>
-      )}
+
+      <AnimatePresence>
+        {showBoundingBox && currentBoundingBox && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="anomaly-box animate-pulse-border absolute"
+            style={{
+              left: `${currentBoundingBox.x * 100}%`,
+              top: `${currentBoundingBox.y * 100}%`,
+              width: `${currentBoundingBox.width * 100}%`,
+              height: `${currentBoundingBox.height * 100}%`,
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 } 

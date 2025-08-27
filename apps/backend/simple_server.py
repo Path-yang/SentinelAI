@@ -69,4 +69,4 @@ if __name__ == "__main__":
     print("🚀 Starting SentinelAI API Server...")
     print("🌐 API is running at http://127.0.0.1:10000")
     print("🌐 API Documentation is not available in this simplified version")
-    app.run(host="127.0.0.1", port=10000, debug=True) 
+    app.run(host="127.0.0.1", port=10001, debug=True) 
