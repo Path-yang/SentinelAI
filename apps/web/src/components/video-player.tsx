@@ -39,9 +39,28 @@ export function VideoPlayer({
 
     const setupHls = () => {
       if (Hls.isSupported()) {
+        // Ultra-low latency HLS configuration
         hls = new Hls({
           enableWorker: true,
           lowLatencyMode: true,
+          liveSyncDuration: 1, // Target live sync duration in seconds
+          liveMaxLatencyDuration: 2, // Maximum acceptable latency
+          liveDurationInfinity: true, // Consider live playlist as endless
+          startLevel: -1, // Auto-select starting level based on bandwidth
+          maxBufferLength: 2, // Max buffer length in seconds
+          maxBufferSize: 2 * 1000 * 1000, // Max buffer size (2MB)
+          maxBufferHole: 0.1, // Maximum buffer holes tolerated in seconds
+          maxStarvationDelay: 1, // Maximum starvation delay in seconds
+          maxLoadingDelay: 1, // Maximum loading delay in seconds
+          backBufferLength: 0, // Don't keep any back buffer
+          initialLiveManifestSize: 1, // Start playback after receiving 1 segment
+          manifestLoadingTimeOut: 5000, // Manifest loading timeout (ms)
+          manifestLoadingMaxRetry: 4, // Maximum manifest loading retries
+          startFragPrefetch: true, // Start prefetching fragments
+          appendErrorMaxRetry: 3, // Maximum append error retries
+          testBandwidth: true, // Test bandwidth before loading
+          progressive: false, // Don't use progressive download
+          debug: false // Disable debug logs
         });
 
         hls.on(Hls.Events.MEDIA_ATTACHED, () => {
@@ -52,38 +71,85 @@ export function VideoPlayer({
           console.log("HLS: Manifest parsed");
           setIsLoading(false);
           if (autoPlay) {
+            // Set video properties for low latency
+            video.preload = "auto";
+            video.muted = muted; // Muted videos start faster
+            
+            // Reduce latency by setting playback rate slightly faster
+            // when buffer is healthy, to catch up with live edge
+            const handleWaiting = () => {
+              video.playbackRate = 1.0; // Normal speed when buffering
+            };
+            
+            const handlePlaying = () => {
+              // Slightly faster to catch up with live edge when playing smoothly
+              video.playbackRate = 1.02;
+            };
+            
+            video.addEventListener('waiting', handleWaiting);
+            video.addEventListener('playing', handlePlaying);
+            
             video.play().catch((e) => console.error("Error playing video:", e));
+            
+            // Clean up event listeners
+            return () => {
+              video.removeEventListener('waiting', handleWaiting);
+              video.removeEventListener('playing', handlePlaying);
+            };
           }
         });
 
+        // Error handling with recovery
         hls.on(Hls.Events.ERROR, (_, data) => {
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                // Only show errors if not in silent mode
                 if (!silent) {
                   console.error("HLS: Fatal network error", data);
                   setError("Network error. Trying to recover...");
                 }
-                hls?.startLoad();
+                // More aggressive recovery for network errors
+                setTimeout(() => {
+                  hls?.startLoad();
+                }, 500);
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                // Only show errors if not in silent mode
                 if (!silent) {
                   console.error("HLS: Fatal media error", data);
                   setError("Media error. Trying to recover...");
                 }
-                hls?.recoverMediaError();
+                // More aggressive media error recovery
+                setTimeout(() => {
+                  hls?.recoverMediaError();
+                }, 250);
                 break;
               default:
-                // Only show errors if not in silent mode
                 if (!silent) {
                   console.error("HLS: Fatal error", data);
                   setError("Could not load video stream");
                 }
-                hls?.destroy();
+                // Try to recreate the HLS instance
+                setTimeout(() => {
+                  if (hls) {
+                    hls.destroy();
+                    setupHls();
+                  }
+                }, 1000);
                 break;
             }
+          }
+        });
+
+        // Add level switching event handler to always use lowest latency level
+        hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+          console.log(`HLS: Switched to level ${data.level}`);
+        });
+        
+        // Force reload of the playlist more frequently
+        hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+          if (data.details.live) {
+            // For live streams, reduce the reload interval
+            data.details.targetduration = Math.min(data.details.targetduration, 1);
           }
         });
 
@@ -92,6 +158,7 @@ export function VideoPlayer({
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         // For Safari
         video.src = src;
+        video.preload = "auto";
         video.addEventListener("loadedmetadata", () => {
           setIsLoading(false);
           if (autoPlay) {
@@ -110,7 +177,7 @@ export function VideoPlayer({
         hls.destroy();
       }
     };
-  }, [src, autoPlay, silent]); // Add silent to dependencies
+  }, [src, autoPlay, silent, muted]);
 
   // Handle alerts and bounding box display
   useEffect(() => {
@@ -185,7 +252,7 @@ export function VideoPlayer({
         autoPlay={autoPlay}
         controls={controls}
         aria-label="Live video stream"
-        preload="metadata"
+        preload="auto" // Changed from metadata to auto for faster loading
       />
 
       <AnimatePresence>

@@ -97,14 +97,16 @@ export default function CameraPage() {
     let rtspUrl = `rtsp://`;
     rtspUrl += `${ip}:${port}/${path}`;
     
-    // Configure stream via API
+    // Configure stream via API with low-latency flag
     const resp = await fetch("http://localhost:3001/api/configure-stream", {
-      method: 'POST', headers: { 'Content-Type':'application/json' },
+      method: 'POST', 
+      headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ 
         streamName, 
         rtspUrl,
         username: username || undefined,
-        password: password || undefined
+        password: password || undefined,
+        lowLatency: true // Signal that we want low-latency configuration
       })
     });
     if (!resp.ok) {
@@ -119,7 +121,19 @@ export default function CameraPage() {
     const video = videoRef.current; if (!video) return;
     try {
       if (Hls.isSupported()) {
-        const hls = new Hls({ enableWorker:true, lowLatencyMode:true });
+        // Ultra-low latency HLS configuration
+        const hls = new Hls({ 
+          enableWorker: true,
+          lowLatencyMode: true,
+          liveSyncDuration: 1,
+          liveMaxLatencyDuration: 2,
+          liveDurationInfinity: true,
+          maxBufferLength: 2,
+          maxBufferSize: 2 * 1000 * 1000,
+          maxBufferHole: 0.1,
+          startFragPrefetch: true,
+          testBandwidth: true
+        });
         
         // Custom error handler to prevent showing network errors during initial connection
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -131,6 +145,25 @@ export default function CameraPage() {
               description: "Stream connection issue. Trying to recover...",
               variant: "destructive"
             });
+            
+            // Attempt recovery based on error type
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              setTimeout(() => hls.startLoad(), 500);
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              setTimeout(() => hls.recoverMediaError(), 250);
+            }
+          }
+        });
+        
+        // Add level switching event handler
+        hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+          console.log(`HLS: Switched to level ${data.level}`);
+        });
+        
+        // Force reload of the playlist more frequently for live streams
+        hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+          if (data.details.live) {
+            data.details.targetduration = Math.min(data.details.targetduration, 1);
           }
         });
         
@@ -140,9 +173,27 @@ export default function CameraPage() {
           setIsLoading(false); 
           setLocalIsConnected(true);
           setIsConnected(true);
+          
+          // Set video properties for low latency
+          video.preload = "auto";
+          video.muted = true; // Start muted to avoid autoplay issues
+          
+          // Reduce latency by setting playback rate slightly faster
+          const handleWaiting = () => {
+            video.playbackRate = 1.0; // Normal speed when buffering
+          };
+          
+          const handlePlaying = () => {
+            // Slightly faster to catch up with live edge when playing smoothly
+            video.playbackRate = 1.02;
+          };
+          
+          video.addEventListener('waiting', handleWaiting);
+          video.addEventListener('playing', handlePlaying);
+          
           video.play().catch(e => console.error("Autoplay failed:", e));
           
-          // Show success toast but don't navigate away
+          // Show success toast
           toast({
             title: "Camera Connected",
             description: "Successfully connected to camera stream",
