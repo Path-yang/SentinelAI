@@ -2,139 +2,96 @@
 
 const fs = require('fs');
 const path = require('path');
-const yaml = require('js-yaml');
 const express = require('express');
 const cors = require('cors');
-const { execSync } = require('child_process');
+const { spawn } = require('child_process');
+const mkdirp = require('mkdirp');
 
 const app = express();
 const PORT = 3001;
+
+// In-memory map of FFmpeg processes by streamName
+const ffmpegProcs = {};
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Path to MediaMTX config file
-const CONFIG_FILE = path.join(__dirname, 'mediamtx.yml');
+// Serve HLS output
+app.use('/hls', express.static(path.join(__dirname, 'hls')));
 
-// Function to read the current config
-function readConfig() {
-  try {
-    const fileContents = fs.readFileSync(CONFIG_FILE, 'utf8');
-    return yaml.load(fileContents);
-  } catch (e) {
-    console.error('Error reading config file:', e);
-    return { paths: {} };
-  }
-}
-
-// Function to write the updated config
-function writeConfig(config) {
-  try {
-    const yamlStr = yaml.dump(config);
-    fs.writeFileSync(CONFIG_FILE, yamlStr, 'utf8');
-    return true;
-  } catch (e) {
-    console.error('Error writing config file:', e);
-    return false;
-  }
-}
-
-// API endpoint to configure a stream
+// POST /api/configure-stream
+// body: { streamName, rtspUrl }
 app.post('/api/configure-stream', async (req, res) => {
   try {
     const { streamName, rtspUrl } = req.body;
-    
     if (!streamName || !rtspUrl) {
       return res.status(400).json({ error: 'Stream name and RTSP URL are required' });
     }
-    
-    // Validate stream name (alphanumeric and underscore only)
-    if (!/^[a-zA-Z0-9_]+$/.test(streamName)) {
-      return res.status(400).json({ error: 'Stream name can only contain letters, numbers, and underscores' });
+    // sanitize streamName
+    if (!/^[a-zA-Z0-9_\-]+$/.test(streamName)) {
+      return res.status(400).json({ error: 'Invalid stream name' });
     }
-    
-    // Validate RTSP URL
-    if (!rtspUrl.toLowerCase().startsWith('rtsp://')) {
-      return res.status(400).json({ error: 'URL must start with rtsp://' });
+    // kill old process if exists
+    if (ffmpegProcs[streamName]) {
+      ffmpegProcs[streamName].kill('SIGKILL');
+      delete ffmpegProcs[streamName];
     }
-    
-    // Read and reset config
-    const config = readConfig();
-    // Reset all paths and add only this one
-    config.paths = {};
-    
-    config.paths[streamName] = {
-      source: rtspUrl,
-      sourceOnDemand: 'yes',
-      sourceProtocol: 'tcp'
-    };
-    
-    // Write updated config
-    if (!writeConfig(config)) {
-      return res.status(500).json({ error: 'Failed to update configuration' });
-    }
-    
-    // Restart MediaMTX to pick up new config
-    try {
-      execSync('pkill -f mediamtx');
-      execSync('nohup ./mediamtx > mediamtx.log 2>&1 &');
-    } catch (err) {
-      console.error('Failed to restart MediaMTX:', err);
-    }
-    
-    // Return success with HLS URL
-    res.json({ success: true, hlsUrl: `http://localhost:8084/${streamName}/index.m3u8` });
-  } catch (error) {
-    console.error('Error configuring stream:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // prepare output directory
+    const outDir = path.join(__dirname, 'hls', streamName);
+    await mkdirp(outDir);
+    // spawn ffmpeg
+    const args = [
+      '-rtsp_transport', 'tcp',
+      '-i', rtspUrl,
+      '-c:v', 'copy',
+      '-c:a', 'copy',
+      '-f', 'hls',
+      '-hls_time', '2',
+      '-hls_list_size', '3',
+      '-hls_flags', 'delete_segments+append_list',
+      path.join(outDir, 'index.m3u8')
+    ];
+    const ff = spawn('ffmpeg', args, { stdio: ['ignore','ignore','ignore'] });
+    ffmpegProcs[streamName] = ff;
+    ff.on('exit', (code, signal) => {
+      console.log(`FFmpeg ${streamName} exited code=${code} sig=${signal}`);
+      delete ffmpegProcs[streamName];
+    });
+    // return HLS URL
+    return res.json({ success: true, hlsUrl: `http://localhost:${PORT}/hls/${streamName}/index.m3u8` });
+  } catch (err) {
+    console.error('Error configuring stream:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// API endpoint to remove a stream
-app.post('/api/remove-stream', async (req, res) => {
+// POST /api/remove-stream
+// body: { streamName }
+app.post('/api/remove-stream', (req, res) => {
   try {
     const { streamName } = req.body;
-    
     if (!streamName) {
       return res.status(400).json({ error: 'Stream name is required' });
     }
-    
-    // Read current config
-    const config = readConfig();
-    
-    // Remove the stream if it exists
-    if (config.paths && config.paths[streamName]) {
-      delete config.paths[streamName];
-      
-      // Write updated config
-      if (!writeConfig(config)) {
-        return res.status(500).json({ error: 'Failed to update configuration' });
-      }
+    if (ffmpegProcs[streamName]) {
+      ffmpegProcs[streamName].kill('SIGKILL');
+      delete ffmpegProcs[streamName];
     }
-    
-    // Restart MediaMTX to pick up new config
-    try {
-      execSync('pkill -f mediamtx');
-      execSync('nohup ./mediamtx > mediamtx.log 2>&1 &');
-    } catch (err) {
-      console.error('Failed to restart MediaMTX:', err);
+    const outDir = path.join(__dirname, 'hls', streamName);
+    if (fs.existsSync(outDir)) {
+      fs.rmdirSync(outDir, { recursive: true });
     }
-    
-    // Return success
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error removing stream:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Error removing stream:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// API endpoint to check status
-app.get('/api/status', (req, res) => {
-  res.json({ status: 'ok', version: '1.0.0' });
-});
+// health check
+app.get('/api/status', (_req, res) => res.json({ status: 'ok' }));
 
-// Start the server
 app.listen(PORT, () => {
-  console.log(`Stream configuration server running on http://localhost:${PORT}`);
+  console.log(`Stream configuration server listening on http://localhost:${PORT}`);
 }); 
