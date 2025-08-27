@@ -36,6 +36,25 @@ export default function CameraPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { toast } = useToast();
+  const [serverIp, setServerIp] = useState<string | null>(null);
+  
+  // Fetch server info on component mount
+  useEffect(() => {
+    const fetchServerInfo = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/server-info');
+        if (response.ok) {
+          const data = await response.json();
+          setServerIp(data.ip);
+          console.log(`Server detected at IP: ${data.ip}`);
+        }
+      } catch (error) {
+        console.error('Error fetching server info:', error);
+      }
+    };
+    
+    fetchServerInfo();
+  }, []);
 
   // Update local state when store changes
   useEffect(() => {
@@ -97,8 +116,11 @@ export default function CameraPage() {
     let rtspUrl = `rtsp://`;
     rtspUrl += `${ip}:${port}/${path}`;
     
+    // Use the detected server IP or fall back to localhost
+    const apiUrl = serverIp ? `http://${serverIp}:3001/api/configure-stream` : 'http://localhost:3001/api/configure-stream';
+    
     // Configure stream via API with extreme low-latency flag
-    const resp = await fetch("http://localhost:3001/api/configure-stream", {
+    const resp = await fetch(apiUrl, {
       method: 'POST', 
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ 
@@ -113,8 +135,13 @@ export default function CameraPage() {
     if (!resp.ok) {
       const err = await resp.json(); toast({ title:"Error", description:err.error||"Configuration failed", variant:"destructive" }); setIsLoading(false); return;
     }
-    const { hlsUrl } = await resp.json();
+    const { hlsUrl, serverIp: streamServerIp } = await resp.json();
     const finalUrl = hlsUrl;
+    
+    // Log the server IP for debugging
+    if (streamServerIp) {
+      console.log(`Stream server IP: ${streamServerIp}`);
+    }
 
     // Save stream URL to store
     setStreamUrl(finalUrl);
@@ -301,8 +328,13 @@ export default function CameraPage() {
     setIsLoading(true);
     
     try {
+      // Use the detected server IP or fall back to localhost
+      const apiUrl = serverIp 
+        ? `http://${serverIp}:3001/api/remove-stream?streamName=${streamName}`
+        : `http://localhost:3001/api/remove-stream?streamName=${streamName}`;
+      
       // Call API to remove stream
-      await fetch(`http://localhost:3001/api/remove-stream?streamName=${streamName}`, {
+      await fetch(apiUrl, {
         method: 'DELETE'
       });
       

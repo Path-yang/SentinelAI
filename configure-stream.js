@@ -6,9 +6,29 @@ const express = require('express');
 const cors = require('cors');
 const { spawn } = require('child_process');
 const mkdirp = require('mkdirp');
+const os = require('os');
 
 const app = express();
 const PORT = 3001;
+
+// Get server IP for proper URL generation across networks
+function getServerIp() {
+  const networkInterfaces = os.networkInterfaces();
+  // Try to find a non-internal IPv4 address
+  for (const name of Object.keys(networkInterfaces)) {
+    for (const net of networkInterfaces[name]) {
+      // Skip internal and non-IPv4 addresses
+      if (!net.internal && net.family === 'IPv4') {
+        return net.address;
+      }
+    }
+  }
+  // Fallback to localhost if no suitable interface is found
+  return 'localhost';
+}
+
+const SERVER_IP = getServerIp();
+console.log(`Server detected IP: ${SERVER_IP}`);
 
 // In-memory map of FFmpeg processes by streamName
 const ffmpegProcs = {};
@@ -141,7 +161,7 @@ app.post('/api/configure-stream', async (req, res) => {
       '-hls_playlist_type', 'event',
       
       // Add custom headers to m3u8 file
-      '-hls_base_url', `http://localhost:${PORT}/hls/${streamName}/`,
+      '-hls_base_url', `http://${SERVER_IP}:${PORT}/hls/${streamName}/`,
       
       // Output
       path.join(outDir, 'index.m3u8')
@@ -164,8 +184,12 @@ app.post('/api/configure-stream', async (req, res) => {
     // Wait a moment to ensure FFmpeg has started generating segments
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // return HLS URL
-    return res.json({ success: true, hlsUrl: `http://localhost:${PORT}/hls/${streamName}/index.m3u8` });
+    // return HLS URL with server IP for cross-network access
+    return res.json({ 
+      success: true, 
+      hlsUrl: `http://${SERVER_IP}:${PORT}/hls/${streamName}/index.m3u8`,
+      serverIp: SERVER_IP
+    });
   } catch (err) {
     console.error('Error configuring stream:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -216,9 +240,19 @@ app.post('/api/remove-stream', (req, res) => {
   }
 });
 
+// Server information endpoint
+app.get('/api/server-info', (_req, res) => {
+  res.json({ 
+    ip: SERVER_IP,
+    port: PORT,
+    platform: process.platform,
+    nodejs: process.version
+  });
+});
+
 // health check
 app.get('/api/status', (_req, res) => res.json({ status: 'ok' }));
 
-app.listen(PORT, () => {
-  console.log(`Stream configuration server listening on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Stream configuration server listening on http://${SERVER_IP}:${PORT}`);
 }); 

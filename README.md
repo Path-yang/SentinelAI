@@ -26,6 +26,7 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 - **Intuitive Dashboard**: Monitor all cameras and review alerts in one place
 - **Responsive Design**: Works on desktop and mobile devices
 - **Dark/Light Mode**: Choose your preferred theme
+- **Cross-Network Support**: Works across different networks and devices
 
 ## 🛠 Tech Stack
 
@@ -246,6 +247,43 @@ Path: vod/mp4:BigBuckBunny_115k.mp4
 ```
 
 No username or password is required for this test stream.
+
+## 🌐 Using Across Different Networks
+
+SentinelAI can be used across different networks with some additional configuration:
+
+### Server Setup (Host)
+
+1. Make sure the server is running on a machine with a stable network connection
+2. Ensure ports 3000, 3001, and 10000 are open in your firewall
+3. For external access, you may need to set up port forwarding on your router
+
+### Client Access (Remote Users)
+
+To access the application from another device:
+
+1. Find the server's IP address:
+   - The server automatically detects and displays its IP on startup
+   - You can also check the `/api/server-info` endpoint
+
+2. Access the application using the server's IP:
+   - **Dashboard**: http://SERVER_IP:3000/dashboard
+   - **Camera Connection**: http://SERVER_IP:3000/camera
+
+3. When connecting to a camera:
+   - Enter the camera's IP as seen from the server's network
+   - If the camera is on a different network, you may need VPN or port forwarding
+
+### Firewall and Network Considerations
+
+- **Port 3000**: Next.js frontend
+- **Port 3001**: Stream configuration server and HLS stream delivery
+- **Port 10000**: Backend API and WebSocket server
+
+For security in production environments:
+- Use a reverse proxy like Nginx
+- Set up HTTPS
+- Implement proper authentication
 
 ## 🔧 Troubleshooting
 
