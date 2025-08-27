@@ -42,6 +42,37 @@ export default function CameraPage() {
     setLocalIsConnected(storeConnected);
   }, [storeConnected]);
 
+  // Add effect to reconnect to existing stream if already connected
+  useEffect(() => {
+    if (storeConnected && videoRef.current) {
+      const reconnectToExistingStream = async () => {
+        const streamUrl = useCameraStore.getState().streamUrl;
+        if (!streamUrl) return;
+        
+        try {
+          if (Hls.isSupported()) {
+            const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+            hls.loadSource(streamUrl);
+            hls.attachMedia(videoRef.current!);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              videoRef.current?.play().catch(e => console.error("Autoplay failed:", e));
+            });
+            hlsRef.current = hls;
+          } else if (videoRef.current.canPlayType("application/vnd.apple.mpegurl")) {
+            videoRef.current.src = streamUrl;
+            videoRef.current.addEventListener("loadedmetadata", () => {
+              videoRef.current?.play().catch(e => console.error("Autoplay failed:", e));
+            });
+          }
+        } catch (e) {
+          console.error("Error reconnecting to stream:", e);
+        }
+      };
+      
+      reconnectToExistingStream();
+    }
+  }, [storeConnected]);
+
   // Clean up on unmount
   useEffect(() => {
     return () => {
@@ -111,16 +142,12 @@ export default function CameraPage() {
           setIsConnected(true);
           video.play().catch(e => console.error("Autoplay failed:", e));
           
-          // Show success toast and navigate to dashboard after 2 seconds
+          // Show success toast but don't navigate away
           toast({
             title: "Camera Connected",
             description: "Successfully connected to camera stream",
             variant: "default",
           });
-          
-          setTimeout(() => {
-            router.push("/dashboard");
-          }, 2000);
         });
         hlsRef.current = hls;
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -131,16 +158,12 @@ export default function CameraPage() {
           setIsConnected(true);
           video.play().catch(e => console.error("Autoplay failed:", e));
           
-          // Show success toast and navigate to dashboard after 2 seconds
+          // Show success toast but don't navigate away
           toast({
             title: "Camera Connected",
             description: "Successfully connected to camera stream",
             variant: "default",
           });
-          
-          setTimeout(() => {
-            router.push("/dashboard");
-          }, 2000);
         });
       }
     } catch (e) { setIsLoading(false); toast({ title:"Error", description:"Playback failed", variant:"destructive" }); }
