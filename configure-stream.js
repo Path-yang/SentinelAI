@@ -59,13 +59,10 @@ app.post('/api/configure-stream', async (req, res) => {
       return res.status(400).json({ error: 'URL must start with rtsp://' });
     }
     
-    // Read current config
+    // Read and reset config
     const config = readConfig();
-    
-    // Add or update the stream configuration
-    if (!config.paths) {
-      config.paths = {};
-    }
+    // Reset all paths and add only this one
+    config.paths = {};
     
     config.paths[streamName] = {
       source: rtspUrl,
@@ -87,10 +84,7 @@ app.post('/api/configure-stream', async (req, res) => {
     }
     
     // Return success with HLS URL
-    res.json({
-      success: true,
-      hlsUrl: `http://localhost:8084/${streamName}/index.m3u8`
-    });
+    res.json({ success: true, hlsUrl: `http://localhost:8084/${streamName}/index.m3u8` });
   } catch (error) {
     console.error('Error configuring stream:', error);
     res.status(500).json({ error: 'Internal server error' });
