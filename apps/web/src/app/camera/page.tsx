@@ -67,6 +67,20 @@ export default function CameraPage() {
     try {
       if (Hls.isSupported()) {
         const hls = new Hls({ enableWorker:true, lowLatencyMode:true });
+        
+        // Custom error handler to prevent showing network errors during initial connection
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          // Only show fatal errors after we're connected
+          if (data.fatal && isConnected) {
+            console.error("HLS error:", data);
+            toast({ 
+              title: data.type === Hls.ErrorTypes.NETWORK_ERROR ? "Network Error" : "Playback Error",
+              description: "Stream connection issue. Trying to recover...",
+              variant: "destructive"
+            });
+          }
+        });
+        
         hls.loadSource(finalUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => { setIsLoading(false); setIsConnected(true); video.play(); });
