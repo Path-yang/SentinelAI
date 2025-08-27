@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
-// Configuration for the stream conversion API
-const STREAM_CONFIG_API = 'http://localhost:3001';
+// Direct HLS test stream that works
+const TEST_STREAM_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
 export default function CameraPage() {
   const [streamUrl, setStreamUrl] = useState("");
@@ -21,7 +21,6 @@ export default function CameraPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { toast } = useToast();
-  const [currentStreamName, setCurrentStreamName] = useState<string | null>(null);
 
   // Clean up HLS instance on unmount
   useEffect(() => {
@@ -30,12 +29,8 @@ export default function CameraPage() {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
-      // Clean up any configured streams
-      if (currentStreamName) {
-        removeStream(currentStreamName);
-      }
     };
-  }, [currentStreamName]);
+  }, []);
 
   const validateUrl = (url: string): boolean => {
     if (!url) {
@@ -47,81 +42,18 @@ export default function CameraPage() {
       return false;
     }
 
-    // Now we support both RTSP and HLS URLs
-    if (!url.toLowerCase().startsWith("rtsp://") && !url.toLowerCase().endsWith(".m3u8")) {
-      toast({
-        title: "Invalid URL Format",
-        description: "Please provide either an RTSP URL (starting with rtsp://) or an HLS URL (ending with .m3u8)",
-        variant: "destructive",
-      });
-      return false;
-    }
-
     return true;
   };
 
-  const configureStream = async (rtspUrl: string, username: string, password: string, streamName: string) => {
-    try {
-      // Build the RTSP URL with credentials if provided
-      let fullRtspUrl = rtspUrl;
-      if (username && password) {
-        // Extract protocol, host, and path
-        const urlMatch = rtspUrl.match(/^(rtsp:\/\/)([^\/]+)(\/.*)?$/);
-        if (urlMatch) {
-          const protocol = urlMatch[1];
-          const host = urlMatch[2];
-          const path = urlMatch[3] || '';
-          
-          // Insert credentials
-          fullRtspUrl = `${protocol}${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}${path}`;
-        }
-      }
-      
-      // Send request to the API
-      const response = await fetch(`${STREAM_CONFIG_API}/api/configure-stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          streamName: streamName,
-          rtspUrl: fullRtspUrl
-        }),
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to configure stream');
-      }
-      
-      const result = await response.json();
-      setCurrentStreamName(streamName);
-      return result.hlsUrl;
-    } catch (error) {
-      console.error('Error configuring stream:', error);
-      throw error;
-    }
-  };
-
-  const removeStream = async (streamName: string) => {
-    try {
-      await fetch(`${STREAM_CONFIG_API}/api/remove-stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          streamName: streamName
-        }),
-      });
-      setCurrentStreamName(null);
-    } catch (error) {
-      console.error('Error removing stream:', error);
-    }
-  };
-
   const connectStream = async () => {
-    if (!validateUrl(streamUrl)) return;
+    let finalUrl = streamUrl;
+    
+    // Use test stream if no URL is provided
+    if (!finalUrl) {
+      finalUrl = TEST_STREAM_URL;
+    }
+    
+    if (!validateUrl(finalUrl)) return;
     
     setIsLoading(true);
     
@@ -135,32 +67,6 @@ export default function CameraPage() {
     if (!video) return;
     
     try {
-      // Determine if we need to convert RTSP to HLS
-      let finalUrl = streamUrl;
-      
-      if (streamUrl.toLowerCase().startsWith("rtsp://")) {
-        try {
-          // Configure the stream conversion
-          finalUrl = await configureStream(streamUrl, username, password, streamName);
-          toast({
-            title: "Stream Configured",
-            description: "RTSP stream successfully converted to HLS",
-          });
-        } catch (error: any) {
-          setIsLoading(false);
-          toast({
-            title: "Stream Configuration Failed",
-            description: error.message || "Failed to convert RTSP to HLS",
-            variant: "destructive",
-          });
-          return;
-        }
-      } else if (username || password) {
-        // Use our proxy API to handle authentication for HLS streams
-        const encodedUrl = encodeURIComponent(streamUrl);
-        finalUrl = `/api/stream/playlist?target=${encodedUrl}&u=${encodeURIComponent(username)}&p=${encodeURIComponent(password)}`;
-      }
-      
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
@@ -263,11 +169,6 @@ export default function CameraPage() {
       videoRef.current.load();
     }
     
-    // Clean up any configured streams
-    if (currentStreamName) {
-      await removeStream(currentStreamName);
-    }
-    
     setIsConnected(false);
   };
 
@@ -290,57 +191,20 @@ export default function CameraPage() {
               className="space-y-4"
             >
               <div className="space-y-2">
-                <Label htmlFor="streamUrl">Stream URL (RTSP or HLS)</Label>
+                <Label htmlFor="streamUrl">Stream URL (HLS)</Label>
                 <Input
                   id="streamUrl"
-                  placeholder="rtsp://camera-ip:554/stream or https://example.com/stream.m3u8"
+                  placeholder="https://example.com/stream.m3u8 (leave empty for test stream)"
                   value={streamUrl}
                   onChange={(e) => setStreamUrl(e.target.value)}
                   disabled={isConnected || isLoading}
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="username">Username (Optional)</Label>
-                <Input
-                  id="username"
-                  placeholder="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={isConnected || isLoading}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password">Password (Optional)</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isConnected || isLoading}
-                />
-              </div>
-              
-              {streamUrl.toLowerCase().startsWith("rtsp://") && (
-                <div className="space-y-2">
-                  <Label htmlFor="streamName">Stream Name (for RTSP conversion)</Label>
-                  <Input
-                    id="streamName"
-                    placeholder="my_camera"
-                    value={streamName}
-                    onChange={(e) => setStreamName(e.target.value.replace(/[^a-zA-Z0-9_]/g, '_'))}
-                    disabled={isConnected || isLoading}
-                  />
-                  <p className="text-xs text-gray-500">Letters, numbers, and underscores only</p>
-                </div>
-              )}
-              
               <div className="flex space-x-2">
                 <Button
                   type="submit"
-                  disabled={isConnected || isLoading || !streamUrl}
+                  disabled={isConnected || isLoading}
                 >
                   {isLoading ? "Connecting..." : "Connect"}
                 </Button>

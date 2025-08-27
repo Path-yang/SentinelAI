@@ -5,7 +5,6 @@ const path = require('path');
 const yaml = require('js-yaml');
 const express = require('express');
 const cors = require('cors');
-const { exec } = require('child_process');
 
 const app = express();
 const PORT = 3001;
@@ -40,52 +39,6 @@ function writeConfig(config) {
   }
 }
 
-// Function to restart MediaMTX
-function restartMediaMTX() {
-  return new Promise((resolve, reject) => {
-    // Find MediaMTX process
-    exec('pkill -f mediamtx', (error) => {
-      // Ignore errors from pkill as it might not be running
-      
-      // Start MediaMTX again
-      exec('./mediamtx', (error, stdout, stderr) => {
-        if (error) {
-          console.error('Error starting MediaMTX:', error);
-          console.error('Stderr:', stderr);
-          
-          // Check if the file exists
-          if (!fs.existsSync('./mediamtx')) {
-            console.error('MediaMTX binary not found. Please download it first.');
-            reject(new Error('MediaMTX binary not found. Please download it first.'));
-            return;
-          }
-          
-          // Make it executable if it's not
-          try {
-            fs.chmodSync('./mediamtx', 0o755);
-            console.log('Made MediaMTX executable, trying again...');
-            
-            // Try again
-            exec('./mediamtx', (error, stdout, stderr) => {
-              if (error) {
-                console.error('Error starting MediaMTX after chmod:', error);
-                reject(error);
-                return;
-              }
-              resolve();
-            });
-          } catch (chmodError) {
-            console.error('Error making MediaMTX executable:', chmodError);
-            reject(chmodError);
-          }
-          return;
-        }
-        resolve();
-      });
-    });
-  });
-}
-
 // API endpoint to configure a stream
 app.post('/api/configure-stream', async (req, res) => {
   try {
@@ -115,7 +68,7 @@ app.post('/api/configure-stream', async (req, res) => {
     
     config.paths[streamName] = {
       source: rtspUrl,
-      sourceOnDemand: true,
+      sourceOnDemand: 'yes',
       sourceProtocol: 'tcp'
     };
     
@@ -124,19 +77,11 @@ app.post('/api/configure-stream', async (req, res) => {
       return res.status(500).json({ error: 'Failed to update configuration' });
     }
     
-    // Restart MediaMTX to apply changes
-    try {
-      await restartMediaMTX();
-      
-      // Return success with HLS URL
-      res.json({
-        success: true,
-        hlsUrl: `http://localhost:8084/${streamName}/index.m3u8`
-      });
-    } catch (error) {
-      console.error('Error restarting MediaMTX:', error);
-      res.status(500).json({ error: 'Failed to restart MediaMTX: ' + error.message });
-    }
+    // Return success with HLS URL
+    res.json({
+      success: true,
+      hlsUrl: `http://localhost:8084/${streamName}/index.m3u8`
+    });
   } catch (error) {
     console.error('Error configuring stream:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -162,14 +107,6 @@ app.post('/api/remove-stream', async (req, res) => {
       // Write updated config
       if (!writeConfig(config)) {
         return res.status(500).json({ error: 'Failed to update configuration' });
-      }
-      
-      // Restart MediaMTX to apply changes
-      try {
-        await restartMediaMTX();
-      } catch (error) {
-        console.error('Error restarting MediaMTX:', error);
-        // Continue anyway since we're just removing a stream
       }
     }
     
