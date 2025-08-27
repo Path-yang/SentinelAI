@@ -8,24 +8,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useCameraStore } from "@/store/camera-store";
 
 // Direct HLS test stream that works
 const TEST_STREAM_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
 export default function CameraPage() {
   const router = useRouter();
- 
-  const [ip, setIp] = useState("");
-  const [port, setPort] = useState("554");
-  const [path, setPath] = useState("stream1");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [streamName, setStreamName] = useState("my_camera");
-  const [isConnected, setIsConnected] = useState(false);
+  
+  const { 
+    cameraDetails, 
+    setCameraDetails, 
+    isConnected: storeConnected, 
+    setIsConnected, 
+    setStreamUrl,
+    disconnect: storeDisconnect
+  } = useCameraStore();
+  
+  const [ip, setIp] = useState(cameraDetails.ip);
+  const [port, setPort] = useState(cameraDetails.port);
+  const [path, setPath] = useState(cameraDetails.path);
+  const [username, setUsername] = useState(cameraDetails.username);
+  const [password, setPassword] = useState(cameraDetails.password);
+  const [streamName, setStreamName] = useState(cameraDetails.streamName);
+  const [isConnected, setLocalIsConnected] = useState(storeConnected);
   const [isLoading, setIsLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { toast } = useToast();
+
+  // Update local state when store changes
+  useEffect(() => {
+    setLocalIsConnected(storeConnected);
+  }, [storeConnected]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -44,9 +59,13 @@ export default function CameraPage() {
     if (!validateInputs()) return;
     setIsLoading(true);
 
+    // Save camera details to store
+    setCameraDetails({ ip, port, path, username, password, streamName });
+
     // Build RTSP URL
     let rtspUrl = `rtsp://`;
     rtspUrl += `${ip}:${port}/${path}`;
+    
     // Configure stream via API
     const resp = await fetch("http://localhost:3001/api/configure-stream", {
       method: 'POST', headers: { 'Content-Type':'application/json' },
@@ -62,6 +81,9 @@ export default function CameraPage() {
     }
     const { hlsUrl } = await resp.json();
     const finalUrl = hlsUrl;
+
+    // Save stream URL to store
+    setStreamUrl(finalUrl);
 
     const video = videoRef.current; if (!video) return;
     try {
@@ -85,7 +107,8 @@ export default function CameraPage() {
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => { 
           setIsLoading(false); 
-          setIsConnected(true); 
+          setLocalIsConnected(true);
+          setIsConnected(true);
           video.play().catch(e => console.error("Autoplay failed:", e));
           
           // Show success toast and navigate to dashboard after 2 seconds
@@ -104,7 +127,8 @@ export default function CameraPage() {
         video.src = finalUrl;
         video.addEventListener("loadedmetadata", () => { 
           setIsLoading(false); 
-          setIsConnected(true); 
+          setLocalIsConnected(true);
+          setIsConnected(true);
           video.play().catch(e => console.error("Autoplay failed:", e));
           
           // Show success toast and navigate to dashboard after 2 seconds
@@ -122,10 +146,38 @@ export default function CameraPage() {
     } catch (e) { setIsLoading(false); toast({ title:"Error", description:"Playback failed", variant:"destructive" }); }
   };
  
-  const disconnectStream = () => {
-    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-    if (videoRef.current) { videoRef.current.src = ""; videoRef.current.load(); }
-    setIsConnected(false);
+  const disconnectStream = async () => {
+    setIsLoading(true);
+    
+    try {
+      // Call API to remove stream
+      await fetch(`http://localhost:3001/api/remove-stream?streamName=${streamName}`, {
+        method: 'DELETE'
+      });
+      
+      // Clean up video player
+      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+      if (videoRef.current) { videoRef.current.src = ""; videoRef.current.load(); }
+      
+      // Update state
+      setLocalIsConnected(false);
+      storeDisconnect();
+      
+      toast({
+        title: "Disconnected",
+        description: "Camera stream has been disconnected",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Error disconnecting stream:", error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect stream",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
  
   return (

@@ -9,6 +9,7 @@ interface WebSocketHookOptions {
   onMessage?: (data: any) => void;
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
+  silent?: boolean; // Add silent option
 }
 
 export function useWebSocket({
@@ -16,6 +17,7 @@ export function useWebSocket({
   onMessage,
   reconnectInterval = 3000,
   maxReconnectAttempts = 5,
+  silent = false, // Default to false
 }: WebSocketHookOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -90,19 +92,20 @@ export function useWebSocket({
 
       ws.onerror = (event) => {
         // Only show errors if not in silent mode
-        if (!options.silent) {
+        if (!silent) {
           console.error("WebSocket error:", event);
           setError(new Error("WebSocket error occurred"));
         }
-        if (options.onError) options.onError(event);
       };
 
       wsRef.current = ws;
     } catch (err) {
-      console.error("Error creating WebSocket:", err);
-      setError(err instanceof Error ? err : new Error(String(err)));
+      if (!silent) {
+        console.error("Error creating WebSocket:", err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+      }
     }
-  }, [url, onMessage, reconnectInterval, maxReconnectAttempts, addAlert, toast]);
+  }, [url, onMessage, reconnectInterval, maxReconnectAttempts, addAlert, toast, silent]);
 
   useEffect(() => {
     connect();

@@ -12,6 +12,7 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   muted?: boolean;
   controls?: boolean;
+  silent?: boolean; // Add silent mode option
 }
 
 export function VideoPlayer({
@@ -20,6 +21,7 @@ export function VideoPlayer({
   autoPlay = true,
   muted = true,
   controls = true,
+  silent = false, // Default to false
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,18 +60,27 @@ export function VideoPlayer({
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error("HLS: Fatal network error", data);
-                setError("Network error. Trying to recover...");
+                // Only show errors if not in silent mode
+                if (!silent) {
+                  console.error("HLS: Fatal network error", data);
+                  setError("Network error. Trying to recover...");
+                }
                 hls?.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error("HLS: Fatal media error", data);
-                setError("Media error. Trying to recover...");
+                // Only show errors if not in silent mode
+                if (!silent) {
+                  console.error("HLS: Fatal media error", data);
+                  setError("Media error. Trying to recover...");
+                }
                 hls?.recoverMediaError();
                 break;
               default:
-                console.error("HLS: Fatal error", data);
-                setError("Could not load video stream");
+                // Only show errors if not in silent mode
+                if (!silent) {
+                  console.error("HLS: Fatal error", data);
+                  setError("Could not load video stream");
+                }
                 hls?.destroy();
                 break;
             }
@@ -99,7 +110,7 @@ export function VideoPlayer({
         hls.destroy();
       }
     };
-  }, [src, autoPlay]);
+  }, [src, autoPlay, silent]); // Add silent to dependencies
 
   // Handle alerts and bounding box display
   useEffect(() => {
