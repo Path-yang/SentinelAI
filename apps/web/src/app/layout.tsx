@@ -11,17 +11,17 @@ export const metadata: Metadata = {
   description: "Transform ordinary cameras into smart anomaly detectors",
   icons: {
     icon: [
-      { url: "/images/logo-only.png", type: "image/png", sizes: "48x48" },
-      { url: "/images/logo-only.png", type: "image/png", sizes: "72x72" },
-      { url: "/images/logo-only.png", type: "image/png", sizes: "96x96" },
-      { url: "/images/logo-only.png", type: "image/png", sizes: "144x144" },
-      { url: "/images/logo-only.png", type: "image/png", sizes: "192x192" },
-      { url: "/images/logo-only.png", type: "image/png", sizes: "512x512" },
+      { url: "/images/full-logo.png", type: "image/png", sizes: "48x48" },
+      { url: "/images/full-logo.png", type: "image/png", sizes: "72x72" },
+      { url: "/images/full-logo.png", type: "image/png", sizes: "96x96" },
+      { url: "/images/full-logo.png", type: "image/png", sizes: "144x144" },
+      { url: "/images/full-logo.png", type: "image/png", sizes: "192x192" },
+      { url: "/images/full-logo.png", type: "image/png", sizes: "512x512" },
     ],
     apple: [
-      { url: "/images/logo-only.png", type: "image/png", sizes: "180x180" },
+      { url: "/images/full-logo.png", type: "image/png", sizes: "180x180" },
     ],
-    shortcut: [{ url: "/images/logo-only.png" }],
+    shortcut: [{ url: "/images/full-logo.png" }],
   },
 };
 
@@ -33,8 +33,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/images/logo-only.png" sizes="any" />
-        <link rel="apple-touch-icon" href="/images/logo-only.png" sizes="180x180" />
+        <link rel="icon" href="/images/full-logo.png" sizes="any" />
+        <link rel="apple-touch-icon" href="/images/full-logo.png" sizes="180x180" />
       </head>
       <body className={inter.className}>
         <ThemeProvider

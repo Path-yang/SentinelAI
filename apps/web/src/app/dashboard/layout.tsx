@@ -38,17 +38,16 @@ export default function DashboardLayout({
         <div className="flex h-16 items-center justify-between px-4 border-b">
           <Link
             href="/"
-            className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
+            className="flex items-center text-primary font-bold text-xl tracking-tight"
           >
             <Image 
-              src="/images/logo-only.png" 
+              src="/images/full-logo.png" 
               alt="SentinelAI Logo" 
-              width={40} 
+              width={150} 
               height={40} 
               className="rounded-md"
               priority
             />
-            <span>SentinelAI</span>
           </Link>
           <button
             className="lg:hidden p-1 rounded-md hover:bg-accent"
@@ -148,17 +147,16 @@ export default function DashboardLayout({
           </button>
           <Link
             href="/"
-            className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
+            className="flex items-center text-primary font-bold text-xl tracking-tight"
           >
             <Image 
-              src="/images/logo-only.png" 
+              src="/images/full-logo.png" 
               alt="SentinelAI Logo" 
-              width={40} 
+              width={150}
               height={40}
               className="rounded-md"
               priority
             />
-            <span>SentinelAI</span>
           </Link>
         </header>
 
