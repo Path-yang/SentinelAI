@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Video, Camera, Settings, X, Menu, Zap, Activity } from "lucide-react";
+import Image from "next/image";
+import { Home, Video, Camera, Settings, X, Menu, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -39,7 +40,13 @@ export default function DashboardLayout({
             href="/"
             className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
           >
-            <Zap className="h-6 w-6" />
+            <Image 
+              src="/images/logo.png" 
+              alt="SentinelAI Logo" 
+              width={28} 
+              height={28} 
+              className="rounded-md"
+            />
             <span>SentinelAI</span>
           </Link>
           <button
@@ -142,7 +149,13 @@ export default function DashboardLayout({
             href="/"
             className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
           >
-            <Zap className="h-6 w-6" />
+            <Image 
+              src="/images/logo.png" 
+              alt="SentinelAI Logo" 
+              width={28} 
+              height={28}
+              className="rounded-md" 
+            />
             <span>SentinelAI</span>
           </Link>
         </header>

@@ -9,6 +9,14 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "SentinelAI - Smart Camera Anomaly Detection",
   description: "Transform ordinary cameras into smart anomaly detectors",
+  icons: {
+    icon: [
+      { url: "/images/logo.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/images/logo.png", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -18,6 +26,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/images/logo.png" />
+      </head>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"

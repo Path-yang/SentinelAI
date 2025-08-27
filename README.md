@@ -1,6 +1,8 @@
 # SentinelAI
 
-![SentinelAI Logo](https://placehold.co/600x200/1a1a2e/ffffff?text=SentinelAI)
+<div align="center">
+  <img src="logo.png" alt="SentinelAI Logo" width="150" />
+</div>
 
 ## 🚀 Project Overview
 
