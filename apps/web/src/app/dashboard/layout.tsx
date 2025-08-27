@@ -43,9 +43,10 @@ export default function DashboardLayout({
             <Image 
               src="/images/logo-only.png" 
               alt="SentinelAI Logo" 
-              width={32} 
-              height={32} 
+              width={40} 
+              height={40} 
               className="rounded-md"
+              priority
             />
             <span>SentinelAI</span>
           </Link>
@@ -152,9 +153,10 @@ export default function DashboardLayout({
             <Image 
               src="/images/logo-only.png" 
               alt="SentinelAI Logo" 
-              width={32} 
-              height={32}
-              className="rounded-md" 
+              width={40} 
+              height={40}
+              className="rounded-md"
+              priority
             />
             <span>SentinelAI</span>
           </Link>
