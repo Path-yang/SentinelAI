@@ -46,12 +46,16 @@ export default function CameraPage() {
 
     // Build RTSP URL
     let rtspUrl = `rtsp://`;
-    if (username && password) rtspUrl += `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`;
     rtspUrl += `${ip}:${port}/${path}`;
     // Configure stream via API
     const resp = await fetch("http://localhost:3001/api/configure-stream", {
       method: 'POST', headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ streamName, rtspUrl })
+      body: JSON.stringify({ 
+        streamName, 
+        rtspUrl,
+        username: username || undefined,
+        password: password || undefined
+      })
     });
     if (!resp.ok) {
       const err = await resp.json(); toast({ title:"Error", description:err.error||"Configuration failed", variant:"destructive" }); setIsLoading(false); return;

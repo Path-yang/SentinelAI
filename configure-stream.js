@@ -24,7 +24,7 @@ app.use('/hls', express.static(path.join(__dirname, 'hls')));
 // body: { streamName, rtspUrl }
 app.post('/api/configure-stream', async (req, res) => {
   try {
-    const { streamName, rtspUrl } = req.body;
+    const { streamName, rtspUrl, username, password } = req.body;
     if (!streamName || !rtspUrl) {
       return res.status(400).json({ error: 'Stream name and RTSP URL are required' });
     }
@@ -41,8 +41,15 @@ app.post('/api/configure-stream', async (req, res) => {
     const outDir = path.join(__dirname, 'hls', streamName);
     await mkdirp(outDir);
     // spawn ffmpeg
+    console.log(`Starting FFmpeg for ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
     const args = [
       '-rtsp_transport', 'tcp',
+      ...(username ? ['-user_agent', 'SentinelAI'] : []),
+      ...(username && password ? ['-rtsp_transport', 'tcp'] : []),
+      ...(username && password ? [
+        '-username', username,
+        '-password', password
+      ] : []),
       '-i', rtspUrl,
       '-c:v', 'copy',
       '-c:a', 'copy',
@@ -52,6 +59,7 @@ app.post('/api/configure-stream', async (req, res) => {
       '-hls_flags', 'delete_segments+append_list',
       path.join(outDir, 'index.m3u8')
     ];
+    console.log(`FFmpeg args: ${args.join(' ')}`);
     const ff = spawn('ffmpeg', args, { stdio: ['ignore','ignore','ignore'] });
     ffmpegProcs[streamName] = ff;
     ff.on('exit', (code, signal) => {
