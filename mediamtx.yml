@@ -1,34 +1,22 @@
-# MediaMTX Configuration for SentinelAI Camera
-
 logLevel: info
 logDestinations: [stdout]
 logFile: mediamtx.log
 
 rtsp: yes
 protocols: [udp, tcp]
-rtspAddress: :8554
-rtpAddress: :8100
-rtcpAddress: :8101
+rtspAddress: ":8554"
 
 hls: yes
-hlsAddress: :8084
+hlsAddress: ":8084"
 hlsVariant: lowLatency
-hlsSegmentCount: 7
-hlsSegmentDuration: 1s
-hlsPartDuration: 0.2s
+hlsSegmentCount: 3
+hlsSegmentDuration: "1s"
+hlsPartDuration: "0.2s"
+hlsAllowOrigin: "*"
 
 paths:
-  test_stream:
-    source: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4
+  camera:
+    # Configured by backend API; default stub
+    source: rtsp://yangzhenduoroger2002%40gmail.com:Yangzhendu2002%40@192.168.1.116:554/stream1
     sourceOnDemand: yes
-    sourceProtocol: tcp
-  my_camera:
-    source: >-
-      rtsp://yangzhenduoroger2002%40gmail.com:Yangzhendu2002%40@192.168.1.116:554/stream1
-    sourceOnDemand: 'yes'
-    sourceProtocol: tcp
-  camera_test:
-    source: >-
-      rtsp://yangzhenduoroger2002%40gmail.com:Yangzhendu2002%40@192.168.1.116:554/stream1
-    sourceOnDemand: 'yes'
     sourceProtocol: tcp
