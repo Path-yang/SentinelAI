@@ -17,6 +17,23 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 - **Health Monitoring**: Alert on sudden collapses, seizures, or other medical emergencies
 - **Industrial Safety**: Spot equipment malfunctions, safety hazards, or unauthorized access
 
+## 🏗️ Current Development Stage
+
+SentinelAI is currently in active development with the following status:
+
+1. ✅ **Camera Integration & Streaming**: Robust RTSP to HLS conversion with ultra-low latency
+2. ✅ **Web Dashboard**: Responsive interface for camera management and monitoring
+3. ✅ **AI Detection UI**: Interface for selecting and managing detection models
+4. 🔄 **AI Model Implementation**: Currently building and training detection models
+5. 🔜 **Hardware Integration**: Upcoming physical alarm system and voice detector
+
+### Upcoming Features
+
+- **AI Model Training**: Implementing PyTorch-based models for anomaly detection
+- **Physical Alarm System**: ESP32-based alarm with siren/strobe for critical alerts
+- **Voice Distress Detection**: Raspberry Pi Zero 2 W-based detector for "help" voice commands
+- **Mobile App**: Native mobile application for iOS and Android
+
 ## ✨ Key Features
 
 - **Camera Integration**: Connect to any commercial IP camera via RTSP streams
@@ -55,6 +72,11 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 - **PyTorchVideo** for video models
 - **X3D** architecture for video classification
 - **OpenCV** for video processing
+
+### Hardware (Coming Soon)
+- **ESP32** for physical alarm system
+- **Raspberry Pi Zero 2 W** for voice detection
+- **5V/12V relay circuits** for external devices
 
 ### Infrastructure
 - **pnpm** monorepo with workspaces
