@@ -23,6 +23,7 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 - **Automatic RTSP to HLS Conversion**: Built-in conversion for browser compatibility
 - **Ultra-Low Latency Streaming**: Optimized for minimal delay between camera and browser
 - **Intelligent Anomaly Detection**: Identify unusual events and behaviors
+- **Customizable AI Models**: Select specific detection models based on your needs
 - **Instant Alerts**: Receive notifications via WebSockets when anomalies are detected
 - **Intuitive Dashboard**: Monitor all cameras and review alerts in one place
 - **Responsive Design**: Works on desktop and mobile devices
@@ -63,7 +64,7 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 ### Prerequisites
 - Node.js 18+ (recommended 18.17.0 or higher)
 - npm or pnpm 8+ (pnpm is preferred)
-- Python 3.8+ (Python 3.13+ supported)
+- Python 3.8+ 
 - FFmpeg (required for video stream conversion)
 - curl (for API testing)
 
@@ -200,6 +201,7 @@ Once all services are running, access the application at:
 
 - **Dashboard**: http://localhost:3000/dashboard
 - **Camera Connection**: http://localhost:3000/camera
+- **AI Detection**: http://localhost:3000/dashboard/watch
 - **Backend API**: http://localhost:10000
 - **Stream Configuration API**: http://localhost:3001
 
@@ -234,13 +236,32 @@ Path: vod/mp4:BigBuckBunny_115k.mp4
 
 No username or password is required for this test stream.
 
-### Stream Not Loading?
+## 🤖 AI Detection Guide
 
-If your stream doesn't load immediately:
-1. Click the refresh button in the top-right corner of the video player
-2. Make sure your camera is accessible from your network
-3. Verify your camera credentials are correct
-4. Check the browser console for any error messages
+SentinelAI allows you to select specific AI models for monitoring your camera feed:
+
+### Setting Up AI Detection
+
+1. Connect your camera first (see Camera Connection Guide)
+2. Navigate to http://localhost:3000/dashboard/watch
+3. Browse through the available detection models:
+   - **Health & Safety**: Fall detection, extended immobility, seizures
+   - **Security**: Intruder detection, abandoned objects, camera tampering
+   - **Emergencies**: Fire detection, accidents, distress signs
+   - **Analytics**: Occupancy counting, dwell time, traffic patterns
+4. Toggle the switch for any models you want to activate
+5. Confirm your selection when prompted
+6. Click "Apply & Return to Dashboard" when finished
+
+The selected models will be displayed on your dashboard and will begin monitoring your camera feed for the specified events.
+
+### Viewing Active Models
+
+Active AI models are displayed in two places:
+1. On the dashboard under the "Active AI Detection" card
+2. As an "AI Active" badge next to your live feed
+
+To manage your active models, click the "Manage" button on the Active AI Detection card.
 
 ## 🌐 Using Across Different Networks
 
