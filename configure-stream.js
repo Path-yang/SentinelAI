@@ -180,33 +180,38 @@ app.post('/api/configure-stream', async (req, res) => {
 
     // Ultra-low latency FFmpeg settings
     const args = [
-      // Input options for low latency
+      // Input options for extreme low latency
       '-rtsp_transport', 'tcp',
-      '-fflags', 'nobuffer',  // Don't buffer input
+      '-fflags', 'nobuffer+discardcorrupt',  // Don't buffer input and discard corrupt packets
       '-flags', 'low_delay',  // Low delay flags
+      '-probesize', '32',     // Minimal probing
+      '-analyzeduration', '0', // No analysis time
       '-i', fullRtspUrl,
       
-      // Video codec settings for low latency
+      // Video codec settings for extreme low latency
       '-c:v', 'libx264',      // Use H.264 codec
       '-preset', 'ultrafast', // Fastest encoding
       '-tune', 'zerolatency', // Optimize for zero latency
       '-profile:v', 'baseline',
+      '-x264opts', 'no-cabac:no-deblock:bframes=0:weightp=0:subme=0:ref=1:scenecut=0:trellis=0:8x8dct=0',
       
-      // Reduce resolution to decrease bandwidth and latency
+      // Reduce resolution but maintain quality
       '-vf', 'scale=640:360',
       
-      // GOP settings for low latency
-      '-g', '15',             // Small GOP size
-      '-keyint_min', '15',    // Force keyframes
+      // GOP settings for extreme low latency
+      '-g', '10',             // Very small GOP size
+      '-keyint_min', '10',    // Force keyframes more frequently
+      '-sc_threshold', '0',   // Disable scene change detection
       
       // Disable audio to reduce latency
       '-an',
       
-      // HLS settings for low latency
+      // HLS settings for extreme low latency
       '-f', 'hls',
-      '-hls_time', '0.5',     // Very short segments (500ms)
-      '-hls_list_size', '3',  // Keep only 3 segments
-      '-hls_flags', 'delete_segments+append_list+discont_start+omit_endlist',
+      '-hls_time', '0.2',     // Ultra short segments (200ms)
+      '-hls_list_size', '2',  // Keep only 2 segments in playlist
+      '-hls_flags', 'delete_segments+append_list+discont_start+omit_endlist+independent_segments',
+      '-hls_segment_type', 'mpegts', // Use mpegts segments for better compatibility
       '-hls_segment_filename', path.join(outDir, 'segment%03d.ts'),
       path.join(outDir, 'index.m3u8')
     ];

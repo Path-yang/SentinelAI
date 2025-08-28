@@ -103,83 +103,125 @@ export function VideoPlayer({
     lastActivityRef.current = Date.now();
   }, []);
 
-  // Update HLS.js configuration for better compatibility
+  // Fix the AbortError and improve latency
   const setupHls = useCallback(() => {
     if (!videoRef.current || !src || setupCompleteRef.current) return;
     
     if (Hls.isSupported()) {
-      // Clean up previous instance
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
+      if (hlsRef.current) { 
+        hlsRef.current.destroy(); 
       }
       
-      // Simple configuration
-      const hls = new Hls({
+      // Create extreme low-latency HLS configuration
+      const hls = new Hls({ 
         enableWorker: true,
+        lowLatencyMode: true,
+        liveSyncDuration: 0.2,
+        liveMaxLatencyDuration: 0.4,
+        maxBufferLength: 0.5,
+        maxBufferSize: 2 * 1000 * 1000,
         debug: false,
-        maxBufferLength: 30
+        xhrSetup: function(xhr) {
+          xhr.setRequestHeader('Cache-Control', 'no-cache');
+        }
       });
       
-      // Set up error handling before loading source
+      // Add timestamp to prevent caching
+      const urlWithTimestamp = `${src}?_t=${Date.now()}`;
+      
+      // Set up error handling
       hls.on(Hls.Events.ERROR, (event, data) => {
-        if (!silent) {
-          console.error('HLS error:', data);
+        if (!silent && data && Object.keys(data).length > 0) { 
+          console.error('HLS player error:', JSON.stringify(data)); 
         }
         
-        if (data.fatal) {
+        if (data && data.fatal) {
           switch(data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.log('Fatal network error encountered, trying to recover...');
-              setTimeout(() => {
-                hls.loadSource(src);
-                hls.startLoad();
-              }, 1000);
+              setTimeout(() => { 
+                hls.loadSource(urlWithTimestamp); 
+                hls.startLoad(); 
+              }, 500);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.log('Fatal media error encountered, trying to recover...');
-              setTimeout(() => {
-                hls.recoverMediaError();
-              }, 1000);
+              setTimeout(() => { 
+                hls.recoverMediaError(); 
+              }, 500);
               break;
             default:
-              console.error('Fatal error, cannot recover:', data);
+              console.error('Fatal error, cannot recover');
               setError('Stream playback error. Try refreshing the page.');
               break;
           }
         }
       });
       
-      // Handle successful loading
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
         setError(null);
         
         if (videoRef.current) {
-          videoRef.current.play().catch(e => {
-            console.error('Autoplay failed:', e);
-          });
+          // Configure video for low latency
+          videoRef.current.muted = true;
+          videoRef.current.autoplay = true;
+          videoRef.current.playsInline = true;
+          
+          // Play faster to reduce latency
+          videoRef.current.playbackRate = 1.1;
+          
+          // Handle play interruption errors
+          const safePlay = () => {
+            if (!videoRef.current) return;
+            
+            videoRef.current.play()
+              .catch(e => {
+                if (e.name === 'AbortError') {
+                  // Play was interrupted, try again after a short delay
+                  setTimeout(safePlay, 100);
+                } else {
+                  console.error('Autoplay failed:', e);
+                }
+              });
+          };
+          
+          // Start playback safely
+          safePlay();
+          
+          // Seek to live edge periodically
+          const seekToLiveEdge = () => {
+            if (hls.liveSyncPosition && videoRef.current) {
+              videoRef.current.currentTime = hls.liveSyncPosition;
+            }
+          };
+          
+          const liveEdgeInterval = setInterval(seekToLiveEdge, 1000);
+          liveEdgeIntervalRef.current = liveEdgeInterval;
         }
+        
         updateActivity();
       });
       
-      // Load source and attach media
-      hls.loadSource(src);
+      hls.loadSource(urlWithTimestamp);
       hls.attachMedia(videoRef.current);
-      
       hlsRef.current = hls;
       setupCompleteRef.current = true;
+      
     } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-      // For Safari
-      videoRef.current.src = src;
+      videoRef.current.src = `${src}?_t=${Date.now()}`;
       videoRef.current.addEventListener('loadedmetadata', () => {
-        videoRef.current?.play().catch(e => {
-          console.error('Autoplay failed:', e);
+        videoRef.current?.play().catch(e => { 
+          console.error('Autoplay failed:', e); 
         });
         updateActivity();
       });
       setupCompleteRef.current = true;
     }
   }, [src, silent, updateActivity]);
+
+  // Add this at the component level, outside the setupHls function
+  const liveEdgeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle HLS video loading
   useEffect(() => {
@@ -229,6 +271,21 @@ export function VideoPlayer({
 
     return () => {
       window.removeEventListener("sentinelai:alert", handleAlert);
+    };
+  }, []);
+
+  // Clean up intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (liveEdgeIntervalRef.current) {
+        clearInterval(liveEdgeIntervalRef.current);
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+      }
     };
   }, []);
 

@@ -269,7 +269,7 @@ export default function CameraPage() {
         hls.on(Hls.Events.ERROR, function(event, data) {
           // Don't log the empty object to console
           if (data && Object.keys(data).length > 0) {
-            console.error("HLS error:", data);
+            console.error("HLS error:", JSON.stringify(data));
           }
           
           if (data && data.fatal) {

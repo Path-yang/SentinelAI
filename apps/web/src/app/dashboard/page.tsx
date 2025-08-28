@@ -1,6 +1,7 @@
+// Fix dashboard video display issue
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { VideoPlayer } from "@/components/video-player";
 import { AlertsPanel } from "@/components/alerts-panel";
 import { Button } from "@/components/ui/button";
@@ -16,18 +17,47 @@ export default function DashboardPage() {
   const [videoSource, setVideoSource] = useState<string | null>(null);
   const [cameraIp, setCameraIp] = useState<string>("");
   
-  // Set video source when streamUrl changes
-  useEffect(() => {
+  // Force refresh the video source when dashboard loads
+  const refreshVideoSource = useCallback(() => {
     if (isConnected && streamUrl) {
       // Add timestamp to prevent caching
-      setVideoSource(`${streamUrl}?_t=${Date.now()}`);
-      setCameraIp(cameraDetails.ip);
-      console.log("Dashboard: Setting video source to", streamUrl);
+      const timestamp = Date.now();
+      setVideoSource(`${streamUrl}?_t=${timestamp}`);
+      setCameraIp(cameraDetails.ip || "");
+      console.log("Dashboard: Setting video source to", `${streamUrl}?_t=${timestamp}`);
     } else {
       setVideoSource(null);
       setCameraIp("");
     }
   }, [isConnected, streamUrl, cameraDetails]);
+
+  // Set video source on initial load
+  useEffect(() => {
+    refreshVideoSource();
+    
+    // Set up periodic refresh
+    const refreshInterval = setInterval(refreshVideoSource, 30000);
+    
+    // Clean up
+    return () => clearInterval(refreshInterval);
+  }, [refreshVideoSource]);
+  
+  // Force refresh when navigating to dashboard
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshVideoSource();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', refreshVideoSource);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', refreshVideoSource);
+    };
+  }, [refreshVideoSource]);
 
   const handleManageCamera = () => {
     router.push("/camera");
@@ -71,12 +101,14 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               {videoSource ? (
-                <VideoPlayer 
-                  src={videoSource} 
-                  className="rounded-md overflow-hidden w-full aspect-video" 
-                  stabilizePlayback={true}
-                  silent={true}
-                />
+                <div key={videoSource}>
+                  <VideoPlayer 
+                    src={videoSource} 
+                    className="rounded-md overflow-hidden w-full aspect-video" 
+                    stabilizePlayback={false}
+                    silent={true}
+                  />
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center bg-muted rounded-md w-full aspect-video">
                   <p className="text-muted-foreground mb-4">No camera connected</p>
