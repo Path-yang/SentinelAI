@@ -248,38 +248,28 @@ export default function CameraPage() {
       
       try {
         if (Hls.isSupported()) {
-          // Extreme low-latency HLS configuration
+          // More compatible HLS configuration
           const hls = new Hls({ 
             enableWorker: true,
-            lowLatencyMode: true,
-            liveSyncDuration: 0.5,
-            liveMaxLatencyDuration: 1,
-            liveDurationInfinity: true,
+            lowLatencyMode: false, // Disable low latency mode for better compatibility
             startLevel: 0,
             capLevelToPlayerSize: true,
-            maxBufferLength: 1,
-            maxBufferSize: 1 * 1000 * 1000,
-            maxBufferHole: 0.05,
-            maxStarvationDelay: 0.2,
-            maxLoadingDelay: 0.2,
-            backBufferLength: 0,
-            initialLiveManifestSize: 1,
-            manifestLoadingTimeOut: 2000,
+            maxBufferLength: 10,
+            maxBufferSize: 10 * 1000 * 1000,
+            manifestLoadingTimeOut: 10000,
             manifestLoadingMaxRetry: 6,
-            manifestLoadingRetryDelay: 500,
-            startFragPrefetch: true,
+            manifestLoadingRetryDelay: 1000,
             appendErrorMaxRetry: 5,
             testBandwidth: false,
-            progressive: false,
             debug: false
           });
           
-          // Force playlist reload every 500ms for live streams
+          // Less aggressive playlist refresh
           const playlistRefreshInterval = setInterval(() => {
             if (hls && hls.levels && hls.levels.length > 0 && hls.currentLevel >= 0) {
               hls.loadLevel(hls.currentLevel);
             }
-          }, 500);
+          }, 2000);
           
           // Custom error handler to prevent showing network errors during initial connection
           hls.on(Hls.Events.ERROR, (event, data) => {
@@ -294,9 +284,9 @@ export default function CameraPage() {
               
               // Attempt recovery based on error type
               if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                setTimeout(() => hls.startLoad(), 250);
+                setTimeout(() => hls.startLoad(), 1000);
               } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                setTimeout(() => hls.recoverMediaError(), 100);
+                setTimeout(() => hls.recoverMediaError(), 1000);
               }
             } else if (!data.fatal) {
               // For non-fatal errors, try to recover immediately

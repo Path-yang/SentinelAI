@@ -101,304 +101,95 @@ export function VideoPlayer({
   }, [checkStreamHealth]);
 
   // Define setupHls function at component level so we can reuse it
+  const updateActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
+
+  // Update HLS.js configuration for better compatibility
   const setupHls = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    
-    console.log("Setting up HLS instance...");
-    
-    // Clean up existing instance if any
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    if (!videoRef.current || !src || setupCompleteRef.current) return;
     
     if (Hls.isSupported()) {
-      // Extreme low-latency HLS configuration
+      // Clean up previous instance
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+      }
+      
+      // More compatible HLS configuration
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        
-        // Minimal buffer configuration
-        liveSyncDuration: 0.5,
-        liveMaxLatencyDuration: 1,
-        liveDurationInfinity: true,
-        
-        // Level selection
+        lowLatencyMode: false, // Disable low latency mode for better compatibility
         startLevel: 0,
-        capLevelToPlayerSize: true,
-        
-        // Buffer settings
-        maxBufferLength: 1,
-        maxBufferSize: 1 * 1000 * 1000,
-        maxBufferHole: 0.05,
-        highBufferWatchdogPeriod: 1,
-        
-        // Latency optimization
-        maxStarvationDelay: 0.2,
-        maxLoadingDelay: 0.2,
-        backBufferLength: 0,
-        
-        // Segment loading
-        initialLiveManifestSize: 1,
-        manifestLoadingTimeOut: 2000,
+        maxBufferLength: 10,
+        maxBufferSize: 10 * 1000 * 1000,
+        manifestLoadingTimeOut: 10000,
         manifestLoadingMaxRetry: 6,
-        manifestLoadingRetryDelay: 500,
-        startFragPrefetch: true,
-        
-        // Error handling
+        manifestLoadingRetryDelay: 1000,
         appendErrorMaxRetry: 5,
-        
-        // Performance
-        testBandwidth: false,
-        progressive: false,
-        
-        // Disable features not needed for low latency
-        enableCEA708Captions: false,
-        enableWebVTT: false,
-        enableIMSC1: false,
-        enableDateRangeMetadataCues: false,
-        
         debug: false
       });
       
-      // Update activity timestamp on any HLS event
-      const updateActivity = () => {
-        lastActivityRef.current = Date.now();
-      };
+      hls.loadSource(src);
+      hls.attachMedia(videoRef.current);
       
-      hls.on(Hls.Events.FRAG_LOADING, updateActivity);
-      hls.on(Hls.Events.FRAG_LOADED, updateActivity);
-      hls.on(Hls.Events.LEVEL_LOADED, updateActivity);
-
-      // Force playlist reload periodically - using startLoad/stopLoad instead of loadLevel
-      let lastRefreshTime = Date.now();
-      const refreshInterval = stabilizePlayback ? 2000 : 500;
-      
-      const playlistRefreshInterval = setInterval(() => {
-        if (hls && video && !video.paused) {
-          const now = Date.now();
-          
-          // Only refresh if enough time has passed
-          if (now - lastRefreshTime >= refreshInterval) {
-            try {
-              // Simple refresh by stopping and restarting load
-              hls.stopLoad();
-              hls.startLoad();
-              lastRefreshTime = now;
-            } catch (e) {
-              console.error("Error refreshing playlist:", e);
-            }
-          }
-        }
-      }, refreshInterval);
-
-      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        console.log("HLS: Media attached");
-        updateActivity();
-      });
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log("HLS: Manifest parsed");
-        setIsLoading(false);
-        setupCompleteRef.current = true;
-        updateActivity();
-        
-        if (autoPlay) {
-          // Set video properties for extreme low latency
-          video.preload = "auto";
-          video.muted = muted; // Muted videos start faster
-          
-          // Disable all default browser buffering
-          video.autoplay = true;
-          video.playsInline = true;
-          
-          // Reduce latency by setting playback rate slightly faster
-          // when buffer is healthy, to catch up with live edge
-          const handleWaiting = () => {
-            video.playbackRate = 1.0; // Normal speed when buffering
-            updateActivity(); // Update activity on waiting
-          };
-          
-          const handlePlaying = () => {
-            // Faster to catch up with live edge when playing smoothly
-            // Use a more conservative speed when stabilizing
-            video.playbackRate = stabilizePlayback ? 1.02 : 1.05;
-            updateActivity(); // Update activity on playing
-          };
-          
-          // Add event listeners
-          video.addEventListener('waiting', handleWaiting);
-          video.addEventListener('playing', handlePlaying);
-          
-          // Force seeking to live edge
-          const seekToLiveEdge = () => {
-            if (hls && video && !video.paused) {
-              const liveEdge = hls.liveSyncPosition;
-              if (liveEdge && video.currentTime < liveEdge - 0.3) {
-                console.log(`Seeking to live edge: ${liveEdge}`);
-                video.currentTime = liveEdge;
-                updateActivity(); // Update activity after seeking
-              }
-            }
-          };
-          
-          // Periodically seek to live edge - less frequently when stabilizing
-          const liveEdgeInterval = setInterval(seekToLiveEdge, stabilizePlayback ? 5000 : 2000);
-          
-          video.play().catch((e) => console.error("Error playing video:", e));
-          
-          // Clean up event listeners and intervals
-          return () => {
-            video.removeEventListener('waiting', handleWaiting);
-            video.removeEventListener('playing', handlePlaying);
-            clearInterval(liveEdgeInterval);
-            clearInterval(playlistRefreshInterval);
-          };
+      // Handle errors
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (!silent) {
+          console.error('HLS error:', data);
         }
         
-        return () => {
-          clearInterval(playlistRefreshInterval);
-        };
-      });
-
-      // Error handling with recovery - less aggressive when stabilizing
-      hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              if (!silent) {
-                console.error("HLS: Fatal network error", data);
-                setError("Network error. Trying to recover...");
+              try {
+                console.log('HLS network error - trying to recover');
+                hls.startLoad();
+              } catch (e) {
+                console.error('Recovery failed:', e);
+                setupHls(); // Try complete reset
               }
-              // More aggressive recovery for network errors - but with delay when stabilizing
-              setTimeout(() => {
-                try {
-                  hls.startLoad();
-                  updateActivity(); // Update activity after recovery
-                } catch (e) {
-                  console.error("Error during recovery:", e);
-                  // If startLoad fails, try a complete reset
-                  setupHls();
-                }
-              }, stabilizePlayback ? 1000 : 250);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              if (!silent) {
-                console.error("HLS: Fatal media error", data);
-                setError("Media error. Trying to recover...");
+              try {
+                console.log('HLS media error - trying to recover');
+                hls.recoverMediaError();
+              } catch (e) {
+                console.error('Recovery failed:', e);
+                setupHls(); // Try complete reset
               }
-              // More aggressive media error recovery - but with delay when stabilizing
-              setTimeout(() => {
-                try {
-                  hls.recoverMediaError();
-                  updateActivity(); // Update activity after recovery
-                } catch (e) {
-                  console.error("Error during media recovery:", e);
-                  setupHls();
-                }
-              }, stabilizePlayback ? 500 : 100);
               break;
             default:
-              if (!silent) {
-                console.error("HLS: Fatal error", data);
-                setError("Could not load video stream");
-              }
-              // Try to recreate the HLS instance - but with delay when stabilizing
-              setTimeout(() => {
-                setupHls();
-              }, stabilizePlayback ? 2000 : 500);
+              console.error('Fatal HLS error, trying to recreate instance');
+              setupHls();
               break;
           }
-        } else if (!stabilizePlayback) {
-          // For non-fatal errors, try to recover immediately - skip when stabilizing
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            try {
-              hls.recoverMediaError();
-              updateActivity();
-            } catch (e) {
-              console.error("Error during non-fatal media recovery:", e);
-            }
-          } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            try {
-              hls.startLoad();
-              updateActivity();
-            } catch (e) {
-              console.error("Error during non-fatal network recovery:", e);
-            }
-          }
         }
       });
       
-      // Force reload of the playlist more frequently
-      hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-        updateActivity(); // Update activity when level is loaded
-        
-        if (data.details.live) {
-          // For live streams, reduce the reload interval - less aggressive when stabilizing
-          data.details.targetduration = Math.min(data.details.targetduration, stabilizePlayback ? 1 : 0.5);
-          
-          // Force seeking to live edge when level is loaded - only if not stabilizing
-          if (!stabilizePlayback && video && !video.paused && hls.liveSyncPosition) {
-            video.currentTime = hls.liveSyncPosition;
-          }
+      // Handle successful loading
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (videoRef.current) {
+          videoRef.current.play().catch(e => {
+            console.error('Autoplay failed:', e);
+          });
         }
-      });
-      
-      // Use low latency mode if available
-      hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
-        updateActivity(); // Update activity when fragment is loaded
-        
-        if (data.frag.type === 'main') {
-          console.log(`HLS: Fragment loaded - duration: ${data.frag.duration}s`);
-        }
-      });
-
-      // Add timestamp to URL to prevent caching
-      const urlWithTimestamp = stabilizePlayback ? src : `${src}?_t=${Date.now()}`;
-      hls.loadSource(urlWithTimestamp);
-      hls.attachMedia(video);
-      hlsRef.current = hls;
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // For Safari
-      // Add timestamp to URL to prevent caching
-      const urlWithTimestamp = stabilizePlayback ? src : `${src}?_t=${Date.now()}`;
-      video.src = urlWithTimestamp;
-      video.preload = "auto";
-      
-      const updateActivity = () => {
-        lastActivityRef.current = Date.now();
-      };
-      
-      video.addEventListener('loadstart', updateActivity);
-      video.addEventListener('progress', updateActivity);
-      video.addEventListener('timeupdate', updateActivity);
-      
-      video.addEventListener("loadedmetadata", () => {
-        setIsLoading(false);
-        setupCompleteRef.current = true;
         updateActivity();
-        
-        if (autoPlay) {
-          // Set video properties for low latency
-          video.preload = "auto";
-          video.muted = muted; // Muted videos start faster
-          video.playbackRate = stabilizePlayback ? 1.02 : 1.05; // Play slightly faster to catch up
-          
-          video.play().catch((e) => console.error("Error playing video:", e));
-        }
       });
       
-      // Clean up event listeners
-      return () => {
-        video.removeEventListener('loadstart', updateActivity);
-        video.removeEventListener('progress', updateActivity);
-        video.removeEventListener('timeupdate', updateActivity);
-      };
-    } else {
-      setError("HLS is not supported in this browser");
+      hlsRef.current = hls;
+      setupCompleteRef.current = true;
+    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      // For Safari
+      videoRef.current.src = src;
+      videoRef.current.addEventListener('loadedmetadata', () => {
+        videoRef.current?.play().catch(e => {
+          console.error('Autoplay failed:', e);
+        });
+        updateActivity();
+      });
+      setupCompleteRef.current = true;
     }
-  }, [src, autoPlay, silent, muted, stabilizePlayback]);
+  }, [src, silent, updateActivity]);
 
   // Handle HLS video loading
   useEffect(() => {
