@@ -165,19 +165,6 @@ export default function DashboardPage() {
             Monitor your cameras and view anomaly alerts.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/dashboard/watch">
-            <Button variant="outline" className="flex items-center gap-1">
-              <Zap className="h-4 w-4" />
-              Test AI
-            </Button>
-          </Link>
-          <Link href="/camera">
-            <Button>
-              Manage Camera
-            </Button>
-          </Link>
-        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-7">
