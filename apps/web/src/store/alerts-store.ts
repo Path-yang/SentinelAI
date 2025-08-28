@@ -14,6 +14,8 @@ export interface Alert {
   cameraId: string;
   cameraName?: string;
   imageUrl?: string;
+  /** Confidence score for the alert (0 to 1) */
+  confidence?: number;
   acknowledged: boolean;
 }
 
