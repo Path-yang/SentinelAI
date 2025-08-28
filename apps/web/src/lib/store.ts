@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export interface Event {
   id: string;
-  camera_id: string;
+  cameraId: string;
   type: string;
   confidence: number;
   timestamp: string;

@@ -12,7 +12,7 @@ export default function CamerasPage() {
   const events = useAppStore((state) => state.events);
 
   const getCameraEvents = (cameraId: string) => {
-    return events.filter(event => event.camera_id === cameraId);
+    return events.filter(event => event.cameraId === cameraId);
   };
 
   const getCameraStatus = (cameraId: string) => {

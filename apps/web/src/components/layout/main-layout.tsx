@@ -27,7 +27,10 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const { isConnected: wsStatus } = useWebSocket();
+  const { isConnected: wsStatus } = useWebSocket({
+    url: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:10000/ws/alerts",
+    silent: true,
+  });
   const { theme, setTheme } = useTheme();
   
   // Close sidebar when navigating (on mobile)
@@ -106,12 +109,10 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
                 <div className={`h-2 w-2 rounded-full ${
-                  wsStatus === 'connected' ? 'bg-green-500' : 
-                  wsStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
+                  wsStatus ? 'bg-green-500' : 'bg-red-500'
                 }`} />
                 <span className="text-sm text-muted-foreground">
-                  {wsStatus === 'connected' ? 'Connected' : 
-                   wsStatus === 'connecting' ? 'Connecting...' : 'Disconnected'}
+                  {wsStatus ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
               

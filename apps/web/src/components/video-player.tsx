@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Hls from "hls.js";
-import { useAlertsStore, Alert, BoundingBox } from "@/store/alerts-store";
+import { useAlertsStore, Alert } from "@/store/alerts-store";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 

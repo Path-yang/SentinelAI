@@ -94,13 +94,13 @@ export function InteractiveAlerts() {
   // Filter events based on selected filters
   const filteredEvents = events.filter(event => {
     if (filterType !== 'all' && event.type !== filterType) return false;
-    if (filterCamera !== 'all' && event.camera_id !== filterCamera) return false;
+            if (filterCamera !== 'all' && event.cameraId !== filterCamera) return false;
     return true;
   });
 
   // Get unique event types and camera IDs for filters
   const eventTypes = Array.from(new Set(events.map(e => e.type)));
-  const cameraIds = Array.from(new Set(events.map(e => e.camera_id)));
+      const cameraIds = Array.from(new Set(events.map(e => e.cameraId)));
 
   return (
     <div className="space-y-4">
@@ -208,7 +208,7 @@ export function InteractiveAlerts() {
                       </div>
                       
                       <p className="text-sm text-muted-foreground mb-2">
-                        {event.description || `Anomaly detected on ${cameras.find(c => c.id === event.camera_id)?.name || event.camera_id}`}
+                        {event.description || `Anomaly detected on ${cameras.find(c => c.id === event.cameraId)?.name || event.cameraId}`}
                       </p>
                       
                       <div className="flex items-center space-x-4 text-xs text-muted-foreground">
@@ -288,7 +288,7 @@ export function InteractiveAlerts() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Camera</label>
                 <p className="text-sm">
-                  {cameras.find(c => c.id === selectedAlert.camera_id)?.name || selectedAlert.camera_id}
+                  {cameras.find(c => c.id === selectedAlert.cameraId)?.name || selectedAlert.cameraId}
                 </p>
               </div>
               

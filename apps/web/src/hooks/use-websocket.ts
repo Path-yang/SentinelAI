@@ -56,7 +56,7 @@ export function useWebSocket({
             // Show toast notification
             toast({
               title: `${alert.type.charAt(0).toUpperCase() + alert.type.slice(1)} Detected`,
-              description: `Camera: ${alert.camera_id} - Confidence: ${Math.round(
+              description: `Camera: ${alert.cameraId} - Confidence: ${Math.round(
                 alert.confidence * 100
               )}%`,
               variant: "destructive",

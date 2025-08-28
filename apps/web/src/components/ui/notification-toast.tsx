@@ -41,9 +41,9 @@ export function NotificationToast() {
         id: event.id,
         type: event.confidence > 0.8 ? 'alert' : event.confidence > 0.5 ? 'warning' : 'info',
         title: `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} Detected`,
-        message: event.description || `Anomaly detected on ${cameras.find(c => c.id === event.camera_id)?.name || event.camera_id}`,
+        message: event.description || `Anomaly detected on ${cameras.find(c => c.id === event.cameraId)?.name || event.cameraId}`,
         timestamp: new Date(event.timestamp),
-        cameraId: event.camera_id,
+        cameraId: event.cameraId,
         eventId: event.id,
         isRead: false
       }));
