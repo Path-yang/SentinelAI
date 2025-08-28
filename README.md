@@ -8,7 +8,7 @@
 
 **SentinelAI transforms ordinary commercial cameras into smart anomaly detectors.**
 
-Using advanced AI technology, SentinelAI connects to any commercial IP camera via RTSP or HLS streams, analyzes video feeds in real-time for anomalies, and broadcasts instant alerts to web and mobile clients.
+Using advanced AI technology, SentinelAI connects to any commercial IP camera via RTSP streams, analyzes video feeds in real-time for anomalies, and broadcasts instant alerts to web and mobile clients.
 
 ### 🔍 Use Cases
 
@@ -19,8 +19,9 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 
 ## ✨ Key Features
 
-- **Camera Integration**: Connect to any commercial IP camera via RTSP or HLS streams
+- **Camera Integration**: Connect to any commercial IP camera via RTSP streams
 - **Automatic RTSP to HLS Conversion**: Built-in conversion for browser compatibility
+- **Ultra-Low Latency Streaming**: Optimized for minimal delay between camera and browser
 - **Intelligent Anomaly Detection**: Identify unusual events and behaviors
 - **Instant Alerts**: Receive notifications via WebSockets when anomalies are detected
 - **Intuitive Dashboard**: Monitor all cameras and review alerts in one place
@@ -64,7 +65,7 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 - npm or pnpm 8+ (pnpm is preferred)
 - Python 3.8+ (Python 3.13+ supported)
 - FFmpeg (required for video stream conversion)
-- curl (for downloading MediaMTX)
+- curl (for API testing)
 
 #### Installing FFmpeg
 FFmpeg is essential for video stream conversion. Install it based on your operating system:
@@ -104,10 +105,9 @@ chmod +x setup.sh
 ```
 
 This script will:
-1. Download MediaMTX for your operating system
-2. Set up the Python virtual environment with Python 3.13+ compatibility
-3. Install all dependencies for the backend, frontend, and stream configuration server
-4. Create necessary configuration files
+1. Set up the Python virtual environment
+2. Install all dependencies for the backend, frontend, and stream configuration server
+3. Create necessary configuration files
 
 ### Manual Installation
 
@@ -119,24 +119,7 @@ git clone https://github.com/yourusername/SentinelAI.git
 cd SentinelAI
 ```
 
-2. Download MediaMTX
-```bash
-# For macOS (Apple Silicon)
-curl -L -o mediamtx.tar.gz https://github.com/bluenviron/mediamtx/releases/download/v1.5.0/mediamtx_v1.5.0_darwin_arm64.tar.gz
-
-# For macOS (Intel)
-curl -L -o mediamtx.tar.gz https://github.com/bluenviron/mediamtx/releases/download/v1.5.0/mediamtx_v1.5.0_darwin_amd64.tar.gz
-
-# For Linux (AMD64)
-curl -L -o mediamtx.tar.gz https://github.com/bluenviron/mediamtx/releases/download/v1.5.0/mediamtx_v1.5.0_linux_amd64.tar.gz
-
-# Extract and make executable
-tar -xzf mediamtx.tar.gz mediamtx
-chmod +x mediamtx
-rm mediamtx.tar.gz
-```
-
-3. Install frontend dependencies
+2. Install frontend dependencies
 ```bash
 # Using npm
 npm install
@@ -145,22 +128,22 @@ npm install
 pnpm install
 ```
 
-4. Install stream configuration server dependencies
+3. Install stream configuration server dependencies
 ```bash
-npm install cors express js-yaml
+npm install express cors mkdirp
 ```
 
-5. Set up backend environment
+4. Set up backend environment
 ```bash
 cd apps/backend
 python -m venv venv
 source venv/bin/activate  # On Windows, use: venv\Scripts\activate
 pip install --upgrade pip
-pip install flask flask-cors fastapi uvicorn websockets python-multipart
+pip install flask flask-cors
 cd ../..
 ```
 
-6. Create environment variables
+5. Create environment variables
 ```bash
 # In apps/web
 cp env.example .env.local
@@ -182,10 +165,9 @@ chmod +x start.sh
 
 This script will automatically:
 1. Check and install missing dependencies if needed
-2. Start MediaMTX (HLS streaming server)
-3. Start the stream configuration server (RTSP to HLS conversion)
-4. Start the backend server (Python FastAPI/Flask)
-5. Start the frontend server (Next.js)
+2. Start the stream configuration server (RTSP to HLS conversion)
+3. Start the backend server (Python Flask)
+4. Start the frontend server (Next.js)
 
 ### Manual Start
 
@@ -223,7 +205,7 @@ Once all services are running, access the application at:
 
 ## 📹 Camera Connection Guide
 
-SentinelAI supports both RTSP and HLS camera streams:
+SentinelAI supports RTSP camera streams with automatic conversion to HLS:
 
 ### Connecting an RTSP Camera
 
@@ -238,7 +220,8 @@ SentinelAI supports both RTSP and HLS camera streams:
 The application will automatically:
 - Build the RTSP URL from your inputs
 - Convert the RTSP stream to HLS using FFmpeg
-- Display the stream in your browser
+- Display the stream in your browser with ultra-low latency
+- Make the stream available on the dashboard
 
 ### Testing with a Sample Stream
 
@@ -250,6 +233,14 @@ Path: vod/mp4:BigBuckBunny_115k.mp4
 ```
 
 No username or password is required for this test stream.
+
+### Stream Not Loading?
+
+If your stream doesn't load immediately:
+1. Click the refresh button in the top-right corner of the video player
+2. Make sure your camera is accessible from your network
+3. Verify your camera credentials are correct
+4. Check the browser console for any error messages
 
 ## 🌐 Using Across Different Networks
 
@@ -300,14 +291,6 @@ ffmpeg -version
 
 If not installed, follow the FFmpeg installation instructions in the Prerequisites section.
 
-#### Python 3.13 Compatibility Issues
-
-If you encounter Python 3.13 compatibility issues:
-
-1. The setup script now automatically handles Python 3.13+ compatibility
-2. Dependencies are installed with flexible versioning
-3. If issues persist, try using Python 3.11 or 3.12
-
 #### Stream Configuration Issues
 
 If you encounter issues with the stream configuration:
@@ -347,6 +330,15 @@ If you cannot connect to your camera:
    - Open VLC
    - Media > Open Network Stream
    - Enter your RTSP URL and click Play
+
+#### Dashboard Video Not Loading
+
+If the dashboard video is not loading:
+
+1. Make sure you've successfully connected a camera first
+2. Click the refresh button in the top-right corner of the video player
+3. Try disconnecting and reconnecting the camera
+4. Check the browser console for any error messages
 
 #### "NotAllowedError: play() failed because the user didn't interact" Warning
 
