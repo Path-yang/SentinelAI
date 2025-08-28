@@ -99,15 +99,79 @@ export default function CameraPage() {
     };
   }, []);
  
-  const validateInputs = (): boolean => {
-    if (!ip) { toast({ title: "Error", description: "Please enter camera IP", variant: "destructive" }); return false; }
-    if (!path) { toast({ title: "Error", description: "Please enter stream path", variant: "destructive" }); return false; }
-    return true;
+  // Add force disconnect on error
+  const forceDisconnect = () => {
+    // Clean up video player
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+    if (videoRef.current) { videoRef.current.src = ""; videoRef.current.load(); }
+    
+    // Update state
+    setLocalIsConnected(false);
+    storeDisconnect();
   };
- 
-  const connectStream = async () => {
-    if (!validateInputs()) return;
+
+  // Update validation to actually test the RTSP connection
+  const validateInputs = async (): Promise<boolean> => {
+    if (!ip) { 
+      toast({ title: "Error", description: "Please enter camera IP", variant: "destructive" }); 
+      return false; 
+    }
+    if (!path) { 
+      toast({ title: "Error", description: "Please enter stream path", variant: "destructive" }); 
+      return false; 
+    }
+    
+    // Set the loading state while we test
     setIsLoading(true);
+    
+    // Use the detected server IP or fall back to localhost
+    const apiUrl = serverIp ? `http://${serverIp}:3001/api/test-connection` : 'http://localhost:3001/api/test-connection';
+    
+    try {
+      // Build RTSP URL for testing
+      let testRtspUrl = `rtsp://`;
+      testRtspUrl += `${ip}:${port}/${path}`;
+      
+      // Test the connection first
+      const testResp = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rtspUrl: testRtspUrl,
+          username: username || undefined,
+          password: password || undefined,
+          timeout: 5 // 5 second timeout
+        })
+      });
+      
+      const testResult = await testResp.json();
+      
+      if (!testResp.ok || !testResult.success) {
+        toast({ 
+          title: "Connection Failed", 
+          description: testResult.error || "Could not connect to camera. Please check your settings.", 
+          variant: "destructive" 
+        });
+        setIsLoading(false);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error testing connection:", error);
+      toast({ 
+        title: "Connection Error", 
+        description: "Failed to test camera connection", 
+        variant: "destructive" 
+      });
+      setIsLoading(false);
+      return false;
+    }
+  };
+
+  const connectStream = async () => {
+    // Test connection first - this also sets isLoading
+    if (!(await validateInputs())) return;
 
     // Save camera details to store
     setCameraDetails({ ip, port, path, username, password, streamName });
@@ -120,208 +184,230 @@ export default function CameraPage() {
     const apiUrl = serverIp ? `http://${serverIp}:3001/api/configure-stream` : 'http://localhost:3001/api/configure-stream';
     
     // Configure stream via API with extreme low-latency flag
-    const resp = await fetch(apiUrl, {
-      method: 'POST', 
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ 
-        streamName, 
-        rtspUrl,
-        username: username || undefined,
-        password: password || undefined,
-        lowLatency: true,
-        extremeLatency: true // Signal that we want extreme low-latency configuration
-      })
-    });
-    if (!resp.ok) {
-      const err = await resp.json(); toast({ title:"Error", description:err.error||"Configuration failed", variant:"destructive" }); setIsLoading(false); return;
-    }
-    const { hlsUrl, serverIp: streamServerIp } = await resp.json();
-    const finalUrl = hlsUrl;
-    
-    // Log the server IP for debugging
-    if (streamServerIp) {
-      console.log(`Stream server IP: ${streamServerIp}`);
-    }
-
-    // Save stream URL to store
-    setStreamUrl(finalUrl);
-
-    const video = videoRef.current; if (!video) return;
     try {
-      if (Hls.isSupported()) {
-        // Extreme low-latency HLS configuration
-        const hls = new Hls({ 
-          enableWorker: true,
-          lowLatencyMode: true,
-          liveSyncDuration: 0.5,
-          liveMaxLatencyDuration: 1,
-          liveDurationInfinity: true,
-          startLevel: 0,
-          capLevelToPlayerSize: true,
-          maxBufferLength: 1,
-          maxBufferSize: 1 * 1000 * 1000,
-          maxBufferHole: 0.05,
-          maxStarvationDelay: 0.2,
-          maxLoadingDelay: 0.2,
-          backBufferLength: 0,
-          initialLiveManifestSize: 1,
-          manifestLoadingTimeOut: 2000,
-          manifestLoadingMaxRetry: 6,
-          manifestLoadingRetryDelay: 500,
-          startFragPrefetch: true,
-          appendErrorMaxRetry: 5,
-          testBandwidth: false,
-          progressive: false,
-          debug: false
-        });
-        
-        // Force playlist reload every 500ms for live streams
-        const playlistRefreshInterval = setInterval(() => {
-          if (hls && hls.levels && hls.levels.length > 0 && hls.currentLevel >= 0) {
-            hls.loadLevel(hls.currentLevel);
-          }
-        }, 500);
-        
-        // Custom error handler to prevent showing network errors during initial connection
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          // Only show fatal errors after we're connected
-          if (data.fatal && isConnected) {
-            console.error("HLS error:", data);
-            toast({ 
-              title: data.type === Hls.ErrorTypes.NETWORK_ERROR ? "Network Error" : "Playback Error",
-              description: "Stream connection issue. Trying to recover...",
-              variant: "destructive"
-            });
-            
-            // Attempt recovery based on error type
-            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              setTimeout(() => hls.startLoad(), 250);
-            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              setTimeout(() => hls.recoverMediaError(), 100);
+      const resp = await fetch(apiUrl, {
+        method: 'POST', 
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ 
+          streamName, 
+          rtspUrl,
+          username: username || undefined,
+          password: password || undefined,
+          lowLatency: true,
+          extremeLatency: true // Signal that we want extreme low-latency configuration
+        })
+      });
+      
+      if (!resp.ok) {
+        const err = await resp.json(); 
+        toast({ title:"Error", description:err.error||"Configuration failed", variant:"destructive" }); 
+        setIsLoading(false); 
+        return;
+      }
+      
+      const { hlsUrl, serverIp: streamServerIp } = await resp.json();
+      const finalUrl = hlsUrl;
+      
+      // Log the server IP for debugging
+      if (streamServerIp) {
+        console.log(`Stream server IP: ${streamServerIp}`);
+      }
+
+      // Save stream URL to store
+      setStreamUrl(finalUrl);
+
+      const video = videoRef.current; 
+      if (!video) {
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        if (Hls.isSupported()) {
+          // Extreme low-latency HLS configuration
+          const hls = new Hls({ 
+            enableWorker: true,
+            lowLatencyMode: true,
+            liveSyncDuration: 0.5,
+            liveMaxLatencyDuration: 1,
+            liveDurationInfinity: true,
+            startLevel: 0,
+            capLevelToPlayerSize: true,
+            maxBufferLength: 1,
+            maxBufferSize: 1 * 1000 * 1000,
+            maxBufferHole: 0.05,
+            maxStarvationDelay: 0.2,
+            maxLoadingDelay: 0.2,
+            backBufferLength: 0,
+            initialLiveManifestSize: 1,
+            manifestLoadingTimeOut: 2000,
+            manifestLoadingMaxRetry: 6,
+            manifestLoadingRetryDelay: 500,
+            startFragPrefetch: true,
+            appendErrorMaxRetry: 5,
+            testBandwidth: false,
+            progressive: false,
+            debug: false
+          });
+          
+          // Force playlist reload every 500ms for live streams
+          const playlistRefreshInterval = setInterval(() => {
+            if (hls && hls.levels && hls.levels.length > 0 && hls.currentLevel >= 0) {
+              hls.loadLevel(hls.currentLevel);
             }
-          } else if (!data.fatal) {
-            // For non-fatal errors, try to recover immediately
-            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              hls.recoverMediaError();
-            } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              hls.startLoad();
-            }
-          }
-        });
-        
-        // Add level switching event handler
-        hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-          console.log(`HLS: Switched to level ${data.level}`);
-        });
-        
-        // Force reload of the playlist more frequently for live streams
-        hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-          if (data.details.live) {
-            data.details.targetduration = Math.min(data.details.targetduration, 0.5);
-            
-            // Force seeking to live edge when level is loaded
-            if (video && !video.paused && hls.liveSyncPosition) {
-              video.currentTime = hls.liveSyncPosition;
-            }
-          }
-        });
-        
-        // Use low latency mode if available
-        hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
-          if (data.frag.type === 'main') {
-            console.log(`HLS: Fragment loaded - duration: ${data.frag.duration}s`);
-          }
-        });
-        
-        // Add timestamp to URL to prevent caching
-        const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
-        hls.loadSource(urlWithTimestamp);
-        hls.attachMedia(video);
-        
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { 
-          setIsLoading(false); 
-          setLocalIsConnected(true);
-          setIsConnected(true);
+          }, 500);
           
-          // Set video properties for extreme low latency
-          video.preload = "auto";
-          video.muted = true; // Start muted to avoid autoplay issues
-          video.autoplay = true;
-          video.playsInline = true;
-          
-          // Reduce latency by setting playback rate slightly faster
-          const handleWaiting = () => {
-            video.playbackRate = 1.0; // Normal speed when buffering
-          };
-          
-          const handlePlaying = () => {
-            // Faster to catch up with live edge when playing smoothly
-            video.playbackRate = 1.05;
-          };
-          
-          video.addEventListener('waiting', handleWaiting);
-          video.addEventListener('playing', handlePlaying);
-          
-          // Force seeking to live edge
-          const seekToLiveEdge = () => {
-            if (hls && video && !video.paused) {
-              const liveEdge = hls.liveSyncPosition;
-              if (liveEdge && video.currentTime < liveEdge - 0.3) {
-                console.log(`Seeking to live edge: ${liveEdge}`);
-                video.currentTime = liveEdge;
+          // Custom error handler to prevent showing network errors during initial connection
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            // Only show fatal errors after we're connected
+            if (data.fatal && isConnected) {
+              console.error("HLS error:", data);
+              toast({ 
+                title: data.type === Hls.ErrorTypes.NETWORK_ERROR ? "Network Error" : "Playback Error",
+                description: "Stream connection issue. Trying to recover...",
+                variant: "destructive"
+              });
+              
+              // Attempt recovery based on error type
+              if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                setTimeout(() => hls.startLoad(), 250);
+              } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                setTimeout(() => hls.recoverMediaError(), 100);
+              }
+            } else if (!data.fatal) {
+              // For non-fatal errors, try to recover immediately
+              if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                hls.recoverMediaError();
+              } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                hls.startLoad();
               }
             }
-          };
-          
-          // Periodically seek to live edge
-          const liveEdgeInterval = setInterval(seekToLiveEdge, 2000);
-          
-          video.play().catch(e => console.error("Autoplay failed:", e));
-          
-          // Show success toast
-          toast({
-            title: "Camera Connected",
-            description: "Successfully connected to camera stream",
-            variant: "default",
           });
           
-          // Clean up event listeners and intervals
-          return () => {
-            video.removeEventListener('waiting', handleWaiting);
-            video.removeEventListener('playing', handlePlaying);
-            clearInterval(liveEdgeInterval);
-            clearInterval(playlistRefreshInterval);
-          };
-        });
-        
-        hlsRef.current = hls;
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // For Safari - add timestamp to prevent caching
-        const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
-        video.src = urlWithTimestamp;
-        video.preload = "auto";
-        
-        video.addEventListener("loadedmetadata", () => { 
-          setIsLoading(false); 
-          setLocalIsConnected(true);
-          setIsConnected(true);
+          // Add level switching event handler
+          hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+            console.log(`HLS: Switched to level ${data.level}`);
+          });
           
-          // Set video properties for low latency
+          // Force reload of the playlist more frequently for live streams
+          hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+            if (data.details.live) {
+              data.details.targetduration = Math.min(data.details.targetduration, 0.5);
+              
+              // Force seeking to live edge when level is loaded
+              if (video && !video.paused && hls.liveSyncPosition) {
+                video.currentTime = hls.liveSyncPosition;
+              }
+            }
+          });
+          
+          // Use low latency mode if available
+          hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+            if (data.frag.type === 'main') {
+              console.log(`HLS: Fragment loaded - duration: ${data.frag.duration}s`);
+            }
+          });
+          
+          // Add timestamp to URL to prevent caching
+          const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
+          hls.loadSource(urlWithTimestamp);
+          hls.attachMedia(video);
+          
+          hls.on(Hls.Events.MANIFEST_PARSED, () => { 
+            setIsLoading(false); 
+            setLocalIsConnected(true);
+            setIsConnected(true);
+            
+            // Set video properties for extreme low latency
+            video.preload = "auto";
+            video.muted = true; // Start muted to avoid autoplay issues
+            video.autoplay = true;
+            video.playsInline = true;
+            
+            // Reduce latency by setting playback rate slightly faster
+            const handleWaiting = () => {
+              video.playbackRate = 1.0; // Normal speed when buffering
+            };
+            
+            const handlePlaying = () => {
+              // Faster to catch up with live edge when playing smoothly
+              video.playbackRate = 1.05;
+            };
+            
+            video.addEventListener('waiting', handleWaiting);
+            video.addEventListener('playing', handlePlaying);
+            
+            // Force seeking to live edge
+            const seekToLiveEdge = () => {
+              if (hls && video && !video.paused) {
+                const liveEdge = hls.liveSyncPosition;
+                if (liveEdge && video.currentTime < liveEdge - 0.3) {
+                  console.log(`Seeking to live edge: ${liveEdge}`);
+                  video.currentTime = liveEdge;
+                }
+              }
+            };
+            
+            // Periodically seek to live edge
+            const liveEdgeInterval = setInterval(seekToLiveEdge, 2000);
+            
+            video.play().catch(e => console.error("Autoplay failed:", e));
+            
+            // Show success toast
+            toast({
+              title: "Camera Connected",
+              description: "Successfully connected to camera stream",
+              variant: "default",
+            });
+            
+            // Clean up event listeners and intervals
+            return () => {
+              video.removeEventListener('waiting', handleWaiting);
+              video.removeEventListener('playing', handlePlaying);
+              clearInterval(liveEdgeInterval);
+              clearInterval(playlistRefreshInterval);
+            };
+          });
+          
+          hlsRef.current = hls;
+        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          // For Safari - add timestamp to prevent caching
+          const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
+          video.src = urlWithTimestamp;
           video.preload = "auto";
-          video.muted = true; // Start muted to avoid autoplay issues
-          video.playbackRate = 1.05; // Play slightly faster to catch up
           
-          video.play().catch(e => console.error("Autoplay failed:", e));
-          
-          // Show success toast
-          toast({
-            title: "Camera Connected",
-            description: "Successfully connected to camera stream",
-            variant: "default",
+          video.addEventListener("loadedmetadata", () => { 
+            setIsLoading(false); 
+            setLocalIsConnected(true);
+            setIsConnected(true);
+            
+            // Set video properties for low latency
+            video.preload = "auto";
+            video.muted = true; // Start muted to avoid autoplay issues
+            video.playbackRate = 1.05; // Play slightly faster to catch up
+            
+            video.play().catch(e => console.error("Autoplay failed:", e));
+            
+            // Show success toast
+            toast({
+              title: "Camera Connected",
+              description: "Successfully connected to camera stream",
+              variant: "default",
+            });
           });
-        });
+        }
+      } catch (e) { 
+        console.error("Playback error:", e);
+        setIsLoading(false); 
+        toast({ title:"Error", description:"Playback failed", variant:"destructive" }); 
+        forceDisconnect();
       }
-    } catch (e) { setIsLoading(false); toast({ title:"Error", description:"Playback failed", variant:"destructive" }); }
+    } catch (e) {
+      console.error("Stream configuration error:", e);
+      setIsLoading(false);
+      toast({ title:"Error", description:"Failed to configure stream", variant:"destructive" });
+      forceDisconnect();
+    }
   };
  
   const disconnectStream = async () => {

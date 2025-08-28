@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 const mkdirp = require('mkdirp');
 const os = require('os');
 
@@ -193,6 +193,75 @@ app.post('/api/configure-stream', async (req, res) => {
   } catch (err) {
     console.error('Error configuring stream:', err);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/test-connection
+// Tests if a RTSP URL can be connected to
+app.post('/api/test-connection', async (req, res) => {
+  try {
+    const { rtspUrl, username, password, timeout = 5 } = req.body;
+    if (!rtspUrl) {
+      return res.status(400).json({ error: 'RTSP URL is required', success: false });
+    }
+
+    console.log(`Testing RTSP connection to: ${rtspUrl}`);
+    
+    // Prepare FFmpeg command for connection test
+    const args = [
+      '-timeout', `${timeout * 1000000}`, // Convert seconds to microseconds
+      '-rtsp_transport', 'tcp',
+      ...(username && password ? [
+        '-username', username,
+        '-password', password
+      ] : []),
+      '-i', rtspUrl,
+      '-t', '1', // Capture just 1 second
+      '-f', 'null', // Output to null device
+      '-'  // Output to stdout (which we ignore)
+    ];
+    
+    // Use a promise with timeout to limit test duration
+    const testPromise = new Promise((resolve, reject) => {
+      const ffmpegProcess = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+      let errorOutput = '';
+      
+      ffmpegProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      ffmpegProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve({ success: true });
+        } else {
+          console.error(`FFmpeg test failed with code ${code}: ${errorOutput}`);
+          reject(new Error(`Cannot connect to camera: ${errorOutput}`));
+        }
+      });
+      
+      // Kill the process after timeout + 1 second
+      setTimeout(() => {
+        ffmpegProcess.kill('SIGKILL');
+        reject(new Error('Connection test timed out'));
+      }, (timeout + 1) * 1000);
+    });
+    
+    // Run the test with a timeout
+    try {
+      await testPromise;
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(400).json({ 
+        error: error.message || 'Failed to connect to camera', 
+        success: false 
+      });
+    }
+  } catch (err) {
+    console.error('Error testing connection:', err);
+    return res.status(500).json({ 
+      error: 'Internal server error', 
+      success: false 
+    });
   }
 });
 
