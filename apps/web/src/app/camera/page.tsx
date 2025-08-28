@@ -248,96 +248,115 @@ export default function CameraPage() {
         return;
       }
       
-      try {
-        // Update the HLS.js setup code to ensure it loads the stream correctly
-        if (Hls.isSupported()) {
-          // More compatible HLS configuration with simpler settings
-          const hls = new Hls({ 
-            enableWorker: true,
-            debug: true, // Enable debug logs to see what's happening
-            xhrSetup: function(xhr) {
-              // Disable caching for HLS requests
-              xhr.setRequestHeader('Cache-Control', 'no-cache');
+      // Fix the HLS.js configuration to handle errors properly
+      if (Hls.isSupported()) {
+        // Basic HLS configuration with minimal settings
+        const hls = new Hls({ 
+          enableWorker: true,
+          debug: false
+        });
+        
+        // Add timestamp to URL to prevent caching
+        const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
+        console.log("Loading HLS source:", urlWithTimestamp);
+        
+        // Set up error handling before loading source
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error("HLS error:", event, data);
+          
+          if (data.fatal) {
+            switch(data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Fatal network error encountered, trying to recover...');
+                setTimeout(() => {
+                  hls.loadSource(urlWithTimestamp);
+                  hls.startLoad();
+                }, 1000);
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Fatal media error encountered, trying to recover...');
+                setTimeout(() => {
+                  hls.recoverMediaError();
+                }, 1000);
+                break;
+              default:
+                // Cannot recover from other errors
+                console.error('Fatal error, cannot recover:', data);
+                setIsLoading(false);
+                toast({ 
+                  title: "Playback Error", 
+                  description: "Could not play the stream. Please try again.", 
+                  variant: "destructive" 
+                });
+                break;
             }
-          });
+          }
+        });
+        
+        // Handle manifest parsed event
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('HLS manifest parsed, starting playback');
+          setIsLoading(false);
+          setLocalIsConnected(true);
+          setIsConnected(true);
           
-          // Add timestamp to URL to prevent caching
-          const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
-          console.log("Loading HLS source:", urlWithTimestamp);
-          
-          hls.loadSource(urlWithTimestamp);
-          hls.attachMedia(video);
-          
-          // Simple error handler
-          hls.on(Hls.Events.ERROR, (event, data) => {
-            console.error("HLS error:", data);
-            if (data.fatal) {
-              if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                hls.startLoad();
-              } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                hls.recoverMediaError();
-              }
-            }
-          });
-          
-          hls.on(Hls.Events.MANIFEST_PARSED, () => { 
-            setIsLoading(false); 
-            setLocalIsConnected(true);
-            setIsConnected(true);
-            
-            // Basic video setup
+          // Basic video setup
+          if (video) {
             video.muted = true;
-            video.play().catch(e => console.error("Autoplay failed:", e));
-            
-            // Show success toast
-            toast({
-              title: "Camera Connected",
-              description: "Successfully connected to camera stream",
-              variant: "default",
+            video.play().catch(e => {
+              console.error("Autoplay failed:", e);
+              // Try again with user interaction
+              toast({
+                title: "Autoplay Blocked",
+                description: "Click the video to start playback",
+                variant: "default",
+              });
             });
-          });
+          }
           
-          hlsRef.current = hls;
-        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-          // For Safari - add timestamp to prevent caching
-          const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
-          video.src = urlWithTimestamp;
+          // Show success toast
+          toast({
+            title: "Camera Connected",
+            description: "Successfully connected to camera stream",
+            variant: "default",
+          });
+        });
+        
+        // Load source and attach media
+        hls.loadSource(urlWithTimestamp);
+        hls.attachMedia(video);
+        
+        hlsRef.current = hls;
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // For Safari - add timestamp to prevent caching
+        const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
+        video.src = urlWithTimestamp;
+        video.preload = "auto";
+        
+        video.addEventListener("loadedmetadata", () => { 
+          setIsLoading(false); 
+          setLocalIsConnected(true);
+          setIsConnected(true);
+          
+          // Set video properties for low latency
           video.preload = "auto";
+          video.muted = true; // Start muted to avoid autoplay issues
+          video.playbackRate = 1.05; // Play slightly faster to catch up
           
-          video.addEventListener("loadedmetadata", () => { 
-            setIsLoading(false); 
-            setLocalIsConnected(true);
-            setIsConnected(true);
-            
-            // Set video properties for low latency
-            video.preload = "auto";
-            video.muted = true; // Start muted to avoid autoplay issues
-            video.playbackRate = 1.05; // Play slightly faster to catch up
-            
-            video.play().catch(e => console.error("Autoplay failed:", e));
-            
-            // Show success toast
-            toast({
-              title: "Camera Connected",
-              description: "Successfully connected to camera stream",
-              variant: "default",
-            });
+          video.play().catch(e => console.error("Autoplay failed:", e));
+          
+          // Show success toast
+          toast({
+            title: "Camera Connected",
+            description: "Successfully connected to camera stream",
+            variant: "default",
           });
-        }
-      } catch (e) { 
-        console.error("Playback error:", e);
-        setIsLoading(false); 
-        toast({ title:"Error", description:"Playback failed", variant:"destructive" }); 
-        forceDisconnect();
+        });
       }
-    } catch (e) {
-      console.error("Stream configuration error:", e);
-      setIsLoading(false);
-      toast({ 
-        title:"Error", 
-        description:"Failed to configure stream. Make sure the stream configuration server is running.", 
-        variant:"destructive" 
-      });
+    } catch (e) { 
+      console.error("Playback error:", e);
+      setIsLoading(false); 
+      toast({ title:"Error", description:"Playback failed", variant:"destructive" }); 
       forceDisconnect();
     }
   };

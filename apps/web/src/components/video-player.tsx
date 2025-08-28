@@ -113,52 +113,37 @@ export function VideoPlayer({
         hlsRef.current.destroy();
       }
       
-      // More compatible HLS configuration
+      // Simple configuration
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: false, // Disable low latency mode for better compatibility
-        startLevel: 0,
-        maxBufferLength: 10,
-        maxBufferSize: 10 * 1000 * 1000,
-        manifestLoadingTimeOut: 10000,
-        manifestLoadingMaxRetry: 6,
-        manifestLoadingRetryDelay: 1000,
-        appendErrorMaxRetry: 5,
-        debug: false
+        debug: false,
+        maxBufferLength: 30
       });
       
-      hls.loadSource(src);
-      hls.attachMedia(videoRef.current);
-      
-      // Handle errors
+      // Set up error handling before loading source
       hls.on(Hls.Events.ERROR, (event, data) => {
         if (!silent) {
           console.error('HLS error:', data);
         }
         
         if (data.fatal) {
-          switch (data.type) {
+          switch(data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              try {
-                console.log('HLS network error - trying to recover');
+              console.log('Fatal network error encountered, trying to recover...');
+              setTimeout(() => {
+                hls.loadSource(src);
                 hls.startLoad();
-              } catch (e) {
-                console.error('Recovery failed:', e);
-                setupHls(); // Try complete reset
-              }
+              }, 1000);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              try {
-                console.log('HLS media error - trying to recover');
+              console.log('Fatal media error encountered, trying to recover...');
+              setTimeout(() => {
                 hls.recoverMediaError();
-              } catch (e) {
-                console.error('Recovery failed:', e);
-                setupHls(); // Try complete reset
-              }
+              }, 1000);
               break;
             default:
-              console.error('Fatal HLS error, trying to recreate instance');
-              setupHls();
+              console.error('Fatal error, cannot recover:', data);
+              setError('Stream playback error. Try refreshing the page.');
               break;
           }
         }
@@ -166,6 +151,9 @@ export function VideoPlayer({
       
       // Handle successful loading
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setIsLoading(false);
+        setError(null);
+        
         if (videoRef.current) {
           videoRef.current.play().catch(e => {
             console.error('Autoplay failed:', e);
@@ -173,6 +161,10 @@ export function VideoPlayer({
         }
         updateActivity();
       });
+      
+      // Load source and attach media
+      hls.loadSource(src);
+      hls.attachMedia(videoRef.current);
       
       hlsRef.current = hls;
       setupCompleteRef.current = true;

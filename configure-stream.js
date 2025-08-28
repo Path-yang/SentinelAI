@@ -36,25 +36,33 @@ const ffmpegProcs = {};
 // Middleware
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'DELETE'],
-  allowedHeaders: ['Content-Type']
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control']
 }));
 app.use(express.json());
 
-// Serve HLS output with aggressive caching disabled
+// Enhance HLS serving middleware with better headers
 app.use('/hls', (req, res, next) => {
   // Disable caching for all HLS files to ensure fresh content
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  next();
-}, express.static(path.join(__dirname, 'hls'), {
-  // Set headers for all files to improve streaming
-  setHeaders: (res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Connection', 'keep-alive');
+  
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control');
+  
+  // Add connection header
+  res.setHeader('Connection', 'keep-alive');
+  
+  // Handle OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
   }
-}));
+  
+  next();
+}, express.static(path.join(__dirname, 'hls')));
 
 // Fix URL encoding for special characters in username/password
 app.post('/api/test-connection', async (req, res) => {
@@ -134,10 +142,10 @@ app.post('/api/test-connection', async (req, res) => {
   }
 });
 
-// Fix URL encoding for special characters in username/password
+// Simplify FFmpeg arguments for better compatibility
 app.post('/api/configure-stream', async (req, res) => {
   try {
-    const { streamName, rtspUrl, username, password, lowLatency, extremeLatency } = req.body;
+    const { streamName, rtspUrl, username, password } = req.body;
     
     if (!streamName || !rtspUrl) {
       return res.status(400).json({ error: 'Stream name and RTSP URL are required' });
@@ -165,22 +173,26 @@ app.post('/api/configure-stream', async (req, res) => {
         
       const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
       if (urlParts && urlParts.length === 3) {
-        // Use username and password directly without URL encoding
-        // This works better with special characters in many RTSP implementations
         fullRtspUrl = `${urlParts[1]}${safeUsername}:${password}@${urlParts[2]}`;
         console.log(`Using credentials in URL: ${fullRtspUrl}`);
       }
     }
-    // Spawn FFmpeg with fullRtspUrl
-    // spawn ffmpeg with basic settings - no hardware acceleration
-    console.log(`Starting FFmpeg for ${streamName} with URL: ${fullRtspUrl} (auth: ${username ? 'yes' : 'no'})`);
-    
-    // Simplest FFmpeg args: copy stream directly into HLS without re-encoding, with auth header
-    const args = ['-rtsp_transport', 'tcp', '-i', fullRtspUrl];
-    args.push('-c', 'copy');
-    args.push('-f', 'hls', '-hls_time', '2', '-hls_list_size', '3', '-hls_flags', 'delete_segments');
-    args.push('-hls_segment_filename', path.join(outDir, 'segment%03d.ts'));
-    args.push(path.join(outDir, 'index.m3u8'));
+
+    // Use simpler FFmpeg args with direct copy
+    const args = [
+      // Input options
+      '-rtsp_transport', 'tcp',
+      '-i', fullRtspUrl,
+      
+      // Output options - direct copy without re-encoding
+      '-c', 'copy',
+      '-f', 'hls',
+      '-hls_time', '2',
+      '-hls_list_size', '3',
+      '-hls_flags', 'delete_segments',
+      '-hls_segment_filename', path.join(outDir, 'segment%03d.ts'),
+      path.join(outDir, 'index.m3u8')
+    ];
     
     console.log(`FFmpeg args: ${args.join(' ')}`);
     const ff = spawn('ffmpeg', args, { stdio: 'pipe' });
@@ -197,7 +209,7 @@ app.post('/api/configure-stream', async (req, res) => {
     });
     
     // Wait a moment to ensure FFmpeg has started generating segments
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // return HLS URL with server IP for cross-network access
     return res.json({ 
