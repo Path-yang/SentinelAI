@@ -40,8 +40,8 @@ export function MainLayout({ children }: MainLayoutProps) {
   
   const navigationItems = [
     { name: "Dashboard", href: "/", icon: Home },
-    { name: "AI Training", href: "/watch", icon: Zap },
-    { name: "Cameras", href: "/cameras", icon: Camera },
+    { name: "AI Detection", href: "/watch", icon: Zap },
+    { name: "Connect Camera", href: "/camera", icon: Camera },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 

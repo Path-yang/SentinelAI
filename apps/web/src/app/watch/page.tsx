@@ -1,7 +1,8 @@
+// Update Watch page to be AI Detection page with models selection
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { ArrowLeft, Maximize2, Settings, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Maximize2, Settings, Volume2, VolumeX, Search, Zap } from "lucide-react";
 import Link from "next/link";
 import { VideoPlayer } from "@/components/video-player";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function WatchPage() {
+// AI detection models
+const detectionModels = [
+  { id: "fallDetection", name: "Fall Detection", category: "healthcare", description: "Detects falls and sends immediate alerts" },
+  { id: "intruderDetection", name: "Intruder Detection", category: "security", description: "Identifies unauthorized persons" },
+  { id: "fireDetection", name: "Fire Detection", category: "emergency", description: "Detects flames and smoke" },
+  { id: "vehicleAccident", name: "Vehicle Accident", category: "emergency", description: "Detects car crashes and accidents" },
+  { id: "personCounting", name: "Person Counting", category: "analytics", description: "Counts people in the frame" },
+  { id: "weaponDetection", name: "Weapon Detection", category: "security", description: "Identifies potential weapons" },
+  { id: "abnormalBehavior", name: "Abnormal Behavior", category: "analytics", description: "Detects unusual activity patterns" },
+  { id: "abandonedObject", name: "Abandoned Object", category: "security", description: "Identifies objects left unattended" }
+];
+
+export default function AIDetectionPage() {
   const cameras = useAppStore((state) => state.cameras);
   const selectedCamera = useAppStore((state) => state.selectedCamera);
   const setSelectedCamera = useAppStore((state) => state.setSelectedCamera);
@@ -20,6 +37,9 @@ export default function WatchPage() {
   const [showControls, setShowControls] = useState(true);
   const [streamQuality, setStreamQuality] = useState('auto');
   const [showSettings, setShowSettings] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState('all');
   
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -60,22 +80,28 @@ export default function WatchPage() {
     setShowControls(!showControls);
   };
 
-  const getQualityLabel = (quality: string) => {
-    switch (quality) {
-      case 'auto': return 'Auto';
-      case '1080p': return '1080p';
-      case '720p': return '720p';
-      case '480p': return '480p';
-      default: return 'Auto';
-    }
+  const toggleModelSelection = (modelId: string) => {
+    setSelectedModels(prev => 
+      prev.includes(modelId) 
+        ? prev.filter(id => id !== modelId) 
+        : [...prev, modelId]
+    );
   };
+
+  // Filter models based on search query and active tab
+  const filteredModels = detectionModels.filter(model => {
+    const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          model.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = activeTab === 'all' || model.category === activeTab;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center">
-          <Link href="/" className="flex items-center space-x-2">
+          <Link href="/dashboard" className="flex items-center space-x-2">
             <ArrowLeft className="h-4 w-4" />
             <span>Back to Dashboard</span>
           </Link>
@@ -118,9 +144,14 @@ export default function WatchPage() {
 
       {/* Main Content */}
       <div className="container py-6">
+        <h1 className="text-3xl font-bold mb-6">AI Detection</h1>
+        <p className="text-muted-foreground mb-6">
+          Select AI models to detect anomalies in your camera feed. Multiple models can run simultaneously.
+        </p>
+        
         <div className="grid gap-6 lg:grid-cols-4">
           {/* Video Player */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <div 
               ref={containerRef}
               className={cn(
@@ -170,113 +201,111 @@ export default function WatchPage() {
               )}
             </div>
           </div>
-
-          {/* Sidebar */}
-          <div className="space-y-4">
-            {/* Camera Selection */}
+          
+          {/* AI Models Sidebar */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Search and filter */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Cameras</CardTitle>
+                <CardTitle>AI Detection Models</CardTitle>
                 <CardDescription>
-                  Switch between different camera feeds
+                  Select models to detect anomalies in your video feed
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {cameras.map((camera) => (
-                  <Button
-                    key={camera.id}
-                    variant={camera.id === selectedCamera ? "default" : "outline"}
-                    className="w-full justify-start"
-                    onClick={() => setSelectedCamera(camera.id)}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <div className={cn(
-                        "w-2 h-2 rounded-full",
-                        camera.id === selectedCamera ? "bg-green-500" : "bg-gray-400"
-                      )} />
-                      <span>{camera.name}</span>
+              <CardContent className="space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search models..."
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="w-full grid grid-cols-5">
+                    <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsTrigger value="security">Security</TabsTrigger>
+                    <TabsTrigger value="emergency">Emergency</TabsTrigger>
+                    <TabsTrigger value="healthcare">Healthcare</TabsTrigger>
+                    <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                  {filteredModels.map((model) => (
+                    <Card key={model.id} className={cn(
+                      "hover:bg-accent/30 transition-colors cursor-pointer",
+                      selectedModels.includes(model.id) && "border-primary bg-primary/5"
+                    )}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <div className="flex items-center space-x-2">
+                              <h3 className="font-medium">{model.name}</h3>
+                              <Badge variant="outline" className="text-xs">
+                                {model.category}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {model.description}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id={`model-${model.id}`}
+                              checked={selectedModels.includes(model.id)}
+                              onCheckedChange={() => toggleModelSelection(model.id)}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  
+                  {filteredModels.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No models found matching your search
                     </div>
-                  </Button>
-                ))}
+                  )}
+                </div>
               </CardContent>
             </Card>
-
-            {/* Settings */}
-            {showSettings && (
+            
+            {/* Active Models */}
+            {selectedModels.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Settings</CardTitle>
+                  <CardTitle>Active Detection</CardTitle>
                   <CardDescription>
-                    Adjust video playback settings
+                    {selectedModels.length} model{selectedModels.length !== 1 ? 's' : ''} currently running
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Stream Quality</label>
-                    <select
-                      value={streamQuality}
-                      onChange={(e) => setStreamQuality(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="auto">Auto</option>
-                      <option value="1080p">1080p</option>
-                      <option value="720p">720p</option>
-                      <option value="480p">480p</option>
-                    </select>
+                <CardContent>
+                  <div className="space-y-2">
+                    {selectedModels.map(modelId => {
+                      const model = detectionModels.find(m => m.id === modelId);
+                      return (
+                        <div key={modelId} className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Zap className="h-4 w-4 text-primary" />
+                            <span>{model?.name}</span>
+                          </div>
+                          <Badge variant="outline" className="bg-green-50 text-green-700">
+                            Active
+                          </Badge>
+                        </div>
+                      );
+                    })}
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Mute Audio</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={toggleMute}
-                    >
-                      {isMuted ? 'On' : 'Off'}
-                    </Button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Show Controls</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={toggleControls}
-                    >
-                      {showControls ? 'On' : 'Off'}
-                    </Button>
-                  </div>
+                  <Button className="w-full mt-4" onClick={() => setSelectedModels([])}>
+                    Stop All Detection
+                  </Button>
                 </CardContent>
               </Card>
             )}
-
-            {/* Stream Info */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Stream Info</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Camera:</span>
-                  <span>{currentCamera?.name || 'Unknown'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Quality:</span>
-                  <span>{getQualityLabel(streamQuality)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Audio:</span>
-                  <span>{isMuted ? 'Muted' : 'On'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Status:</span>
-                  <Badge variant="outline" className="text-xs">
-                    <div className="w-2 h-2 rounded-full bg-green-500 mr-1" />
-                    Live
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>

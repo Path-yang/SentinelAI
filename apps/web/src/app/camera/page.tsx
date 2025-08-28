@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCameraStore } from "@/store/camera-store";
+import Link from "next/link";
+import Image from "next/image";
+import { Home, Camera, Settings, Activity } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Add helper to wait for HLS manifest availability
 const waitForManifest = async (url: string) => {
@@ -27,6 +31,15 @@ const waitForManifest = async (url: string) => {
 
 // Direct HLS test stream that works
 const TEST_STREAM_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+
+// Navigation items
+const navigation = [
+  { name: "Dashboard", href: "/dashboard", icon: Home },
+  { name: "AI Detection", href: "/dashboard/watch", icon: Activity },
+  { name: "Cameras", href: "/dashboard/cameras", icon: Camera },
+  { name: "Connect Camera", href: "/camera", icon: Camera },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+];
 
 export default function CameraPage() {
   const router = useRouter();
@@ -52,6 +65,9 @@ export default function CameraPage() {
   const hlsRef = useRef<Hls | null>(null);
   const { toast } = useToast();
   const [serverIp, setServerIp] = useState<string | null>(null);
+  
+  // Sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Fetch server info on component mount
   useEffect(() => {
@@ -461,97 +477,164 @@ export default function CameraPage() {
   };
  
   return (
-    <div>
-      <Button variant="link" onClick={() => router.back()}>Go Back</Button>
-      <div className="container mx-auto py-8">
-        <h1 className="text-2xl font-bold mb-6">Connect Camera</h1>
-        
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Form Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Stream Settings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  connectStream();
-                }}
-                className="space-y-4"
-              >
-                <div>
-                  <Label htmlFor="ip">Camera IP</Label>
-                  <Input id="ip" value={ip} onChange={e => setIp(e.target.value)} disabled={isConnected || isLoading} />
-                </div>
-                <div>
-                  <Label htmlFor="port">Port</Label>
-                  <Input id="port" value={port} onChange={e => setPort(e.target.value)} disabled={isConnected || isLoading} />
-                </div>
-                <div>
-                  <Label htmlFor="path">Stream Path</Label>
-                  <Input id="path" value={path} onChange={e => setPath(e.target.value)} disabled={isConnected || isLoading} />
-                </div>
-                <div>
-                  <Label htmlFor="username">Username (Optional)</Label>
-                  <Input id="username" value={username} onChange={e => setUsername(e.target.value)} disabled={isConnected || isLoading} />
-                </div>
-                <div>
-                  <Label htmlFor="password">Password (Optional)</Label>
-                  <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} disabled={isConnected || isLoading} />
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    type="submit"
-                    disabled={isConnected || isLoading}
-                  >
-                    {isLoading ? "Connecting..." : "Connect"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={disconnectStream}
-                    disabled={!isConnected || isLoading}
-                  >
-                    Disconnect
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-          
-          {/* Video Player Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Video Stream</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative bg-black rounded-md overflow-hidden aspect-video">
-                {isLoading && !isConnected && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-                    <div className="flex flex-col items-center space-y-2">
-                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                      <p className="text-sm text-gray-400">Connecting to stream...</p>
-                    </div>
-                  </div>
-                )}
-                
-                {!isConnected && !isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/90">
-                    <p className="text-gray-400">No stream connected</p>
-                  </div>
-                )}
-                
-                <video
-                  ref={videoRef}
-                  className="w-full h-full"
-                  controls
-                  playsInline
-                />
-              </div>
-            </CardContent>
-          </Card>
+    <div className="flex h-screen bg-background">
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r lg:relative lg:z-0",
+          "transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-in-out",
+          sidebarOpen && "translate-x-0"
+        )}
+      >
+        {/* Sidebar header */}
+        <div className="flex h-16 items-center justify-between px-4 border-b">
+          <Link
+            href="/"
+            className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
+          >
+            <Image 
+              src="/images/logo-only.png" 
+              alt="SentinelAI Logo" 
+              width={40} 
+              height={40} 
+              className="rounded-md"
+              priority
+            />
+            <span>SentinelAI</span>
+          </Link>
         </div>
+
+        {/* Sidebar navigation */}
+        <nav className="flex flex-col h-[calc(100%-64px)] justify-between">
+          <div className="p-4 space-y-1">
+            {navigation.map((item) => {
+              const isActive = item.href === "/camera";
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <item.icon className="mr-3 h-5 w-5" />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="p-4 border-t">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <div className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}></div>
+                <span className="text-sm text-muted-foreground">
+                  {isConnected ? "Connected" : "Disconnected"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </nav>
+      </aside>
+
+      {/* Main content */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="container mx-auto py-8">
+            <h1 className="text-2xl font-bold mb-6">Connect Camera</h1>
+            
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Form Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Stream Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      connectStream();
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <Label htmlFor="ip">Camera IP</Label>
+                      <Input id="ip" value={ip} onChange={e => setIp(e.target.value)} disabled={isConnected || isLoading} />
+                    </div>
+                    <div>
+                      <Label htmlFor="port">Port</Label>
+                      <Input id="port" value={port} onChange={e => setPort(e.target.value)} disabled={isConnected || isLoading} />
+                    </div>
+                    <div>
+                      <Label htmlFor="path">Stream Path</Label>
+                      <Input id="path" value={path} onChange={e => setPath(e.target.value)} disabled={isConnected || isLoading} />
+                    </div>
+                    <div>
+                      <Label htmlFor="username">Username (Optional)</Label>
+                      <Input id="username" value={username} onChange={e => setUsername(e.target.value)} disabled={isConnected || isLoading} />
+                    </div>
+                    <div>
+                      <Label htmlFor="password">Password (Optional)</Label>
+                      <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} disabled={isConnected || isLoading} />
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        type="submit"
+                        disabled={isConnected || isLoading}
+                      >
+                        {isLoading ? "Connecting..." : "Connect"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={disconnectStream}
+                        disabled={!isConnected || isLoading}
+                      >
+                        Disconnect
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+              
+              {/* Video Player Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Video Stream</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="relative bg-black rounded-md overflow-hidden aspect-video">
+                    {isLoading && !isConnected && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
+                        <div className="flex flex-col items-center space-y-2">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                          <p className="text-sm text-gray-400">Connecting to stream...</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!isConnected && !isLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/90">
+                        <p className="text-gray-400">No stream connected</p>
+                      </div>
+                    )}
+                    
+                    <video
+                      ref={videoRef}
+                      className="w-full h-full"
+                      controls
+                      playsInline
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
