@@ -106,6 +106,7 @@ app.post('/api/configure-stream', async (req, res) => {
       console.log('Hardware acceleration not available, using software encoding');
     }
     
+    // Fix the FFmpeg arguments to use only supported options
     const args = [
       // Global options
       '-hide_banner',
@@ -114,24 +115,12 @@ app.post('/api/configure-stream', async (req, res) => {
       // Input buffer options - extreme minimal buffering
       '-fflags', '+discardcorrupt+nobuffer+fastseek',
       '-flags', 'low_delay',
-      '-avioflags', 'direct',
       
       // Hardware acceleration if available
       ...hwaccel,
       
       // RTSP specific options
       '-rtsp_transport', 'tcp',
-      '-rtsp_flags', 'prefer_tcp+aggressive',
-      '-stimeout', '2000000', // 2 second timeout (in microseconds)
-      '-analyzeduration', '500000', // 0.5 seconds analysis (in microseconds)
-      '-probesize', '32000', // Minimal probe size
-      
-      // Authentication if needed - removed as we're using URL-based auth
-      // ...(username ? ['-user_agent', 'SentinelAI'] : []),
-      // ...(username && password ? [
-      //   '-username', username,
-      //   '-password', password
-      // ] : []),
       
       // Input source with minimal buffering
       '-i', fullRtspUrl,
@@ -142,7 +131,6 @@ app.post('/api/configure-stream', async (req, res) => {
       '-tune', 'zerolatency',
       '-profile:v', 'baseline',
       '-level', '3.0',
-      '-x264opts', 'no-scenecut:vbv-maxrate=1000:vbv-bufsize=100:intra-refresh=1:slice-max-size=1500',
       
       // Reduce frame size for faster processing
       '-vf', 'scale=iw/1.5:ih/1.5',
@@ -150,7 +138,6 @@ app.post('/api/configure-stream', async (req, res) => {
       // GOP settings - extremely small GOP
       '-g', '10',
       '-keyint_min', '5',
-      '-force_key_frames', 'expr:gte(t,n_forced*0.5)',
       
       // Bitrate control - lower quality for speed
       '-b:v', '500k',
@@ -164,15 +151,9 @@ app.post('/api/configure-stream', async (req, res) => {
       '-f', 'hls',
       '-hls_time', '0.2', // Ultra short segments (200ms)
       '-hls_list_size', '2', // Keep only 2 segments in playlist
-      '-hls_flags', 'delete_segments+append_list+discont_start+omit_endlist+independent_segments',
+      '-hls_flags', 'delete_segments+append_list+discont_start+omit_endlist',
       '-hls_segment_type', 'mpegts',
       '-hls_segment_filename', path.join(outDir, 'segment%03d.ts'),
-      '-hls_init_time', '0.2',
-      '-hls_allow_cache', '0',
-      '-hls_playlist_type', 'event',
-      
-      // Add custom headers to m3u8 file
-      '-hls_base_url', `http://${SERVER_IP}:${PORT}/hls/${streamName}/`,
       
       // Output
       path.join(outDir, 'index.m3u8')
@@ -228,9 +209,9 @@ app.post('/api/test-connection', async (req, res) => {
       }
     }
     
-    // Prepare FFmpeg command for connection test
+    // Prepare FFmpeg command for connection test - use minimal arguments
     const args = [
-      '-timeout', `${timeout * 1000000}`, // Convert seconds to microseconds
+      '-loglevel', 'warning',
       '-rtsp_transport', 'tcp',
       '-i', fullRtspUrl,
       '-t', '1', // Capture just 1 second
