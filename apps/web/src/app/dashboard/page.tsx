@@ -1,8 +1,7 @@
-// Add refresh button
+// Use direct video tag like in camera page
 "use client";
 
-import { useState, useEffect } from "react";
-import { VideoPlayer } from "@/components/video-player";
+import { useState, useEffect, useRef } from "react";
 import { AlertsPanel } from "@/components/alerts-panel";
 import { Button } from "@/components/ui/button";
 import { useCameraStore } from "@/store/camera-store";
@@ -10,25 +9,79 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Video, RefreshCw } from "lucide-react";
+import Hls from "hls.js";
 
 export default function DashboardPage() {
   const { streamUrl, isConnected, cameraDetails } = useCameraStore();
   const router = useRouter();
-  const [videoSource, setVideoSource] = useState<string | null>(null);
   const [cameraIp, setCameraIp] = useState<string>("");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   
-  // Set video source when streamUrl changes
+  // Set up HLS player when streamUrl changes
   useEffect(() => {
-    if (isConnected && streamUrl) {
-      // Add timestamp to prevent caching
-      setVideoSource(`${streamUrl}?_t=${Date.now()}`);
+    // Clean up previous HLS instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    
+    if (isConnected && streamUrl && videoRef.current) {
+      console.log("Dashboard: Setting up HLS with", streamUrl);
       setCameraIp(cameraDetails.ip || "");
-      console.log("Dashboard: Setting video source to", streamUrl);
+      
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          debug: false
+        });
+        
+        // Add timestamp to prevent caching
+        const urlWithTimestamp = `${streamUrl}?_t=${Date.now()}`;
+        
+        hls.loadSource(urlWithTimestamp);
+        hls.attachMedia(videoRef.current);
+        
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log("HLS manifest parsed, playing video");
+          videoRef.current?.play().catch(e => {
+            console.error("Autoplay failed:", e);
+          });
+        });
+        
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.warn("Dashboard HLS error:", data?.type, data?.details);
+          
+          // Auto-recover
+          if (data && data.fatal) {
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            }
+          }
+        });
+        
+        hlsRef.current = hls;
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // For Safari
+        videoRef.current.src = streamUrl;
+        videoRef.current.play().catch(e => {
+          console.error("Autoplay failed:", e);
+        });
+      }
     } else {
-      setVideoSource(null);
       setCameraIp("");
     }
+    
+    // Clean up
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
   }, [isConnected, streamUrl, cameraDetails]);
 
   const handleManageCamera = () => {
@@ -36,10 +89,35 @@ export default function DashboardPage() {
   };
   
   const handleRefresh = () => {
-    if (isConnected && streamUrl) {
-      // Update video source with new timestamp and increment refresh key
-      setVideoSource(`${streamUrl}?_t=${Date.now()}`);
-      setRefreshKey(prev => prev + 1);
+    if (isConnected && streamUrl && videoRef.current) {
+      // Clean up previous HLS instance
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          debug: false
+        });
+        
+        // Add timestamp to prevent caching
+        const urlWithTimestamp = `${streamUrl}?_t=${Date.now()}`;
+        
+        hls.loadSource(urlWithTimestamp);
+        hls.attachMedia(videoRef.current);
+        
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log("HLS manifest parsed after refresh, playing video");
+          videoRef.current?.play().catch(e => {
+            console.error("Autoplay failed:", e);
+          });
+        });
+        
+        hlsRef.current = hls;
+      }
     }
   };
 
@@ -91,21 +169,21 @@ export default function DashboardPage() {
               {cameraIp && <p className="text-sm text-muted-foreground">Camera: {cameraIp}</p>}
             </CardHeader>
             <CardContent>
-              {videoSource ? (
-                <div key={`${videoSource}-${refreshKey}`}>
-                  <VideoPlayer 
-                    src={videoSource} 
-                    className="rounded-md overflow-hidden w-full aspect-video" 
-                    stabilizePlayback={false}
-                    silent={true}
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center bg-muted rounded-md w-full aspect-video">
-                  <p className="text-muted-foreground mb-4">No camera connected</p>
-                  <Button onClick={handleManageCamera}>Connect Camera</Button>
-                </div>
-              )}
+              <div className="relative bg-black rounded-md overflow-hidden aspect-video">
+                {!isConnected && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/90">
+                    <p className="text-gray-400">No stream connected</p>
+                  </div>
+                )}
+                
+                <video
+                  ref={videoRef}
+                  className="w-full h-full"
+                  controls
+                  playsInline
+                  muted
+                />
+              </div>
             </CardContent>
           </Card>
         </div>
