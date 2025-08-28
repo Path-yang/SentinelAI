@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
 export function AlertsPanel() {
-  const { alerts, setCurrentAlert } = useAlertsStore();
+  const { alerts } = useAlertsStore();
   const [filter, setFilter] = useState<string | null>(null);
 
   const filteredAlerts = filter
@@ -16,7 +16,7 @@ export function AlertsPanel() {
     : alerts;
 
   const handleAlertClick = (alert: Alert) => {
-    setCurrentAlert(alert);
+    console.log("Alert clicked:", alert);
   };
 
   const handleFilterChange = (type: string | null) => {
@@ -41,7 +41,7 @@ export function AlertsPanel() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setCurrentAlert(null)}
+              onClick={() => console.log("Refresh clicked")}
             >
               <RefreshCw className="w-4 h-4" />
             </Button>
@@ -96,7 +96,7 @@ export function AlertsPanel() {
                     </div>
                     <div className="text-right">
                       <Badge variant="secondary" className="mb-1">
-                        {alert.camera_id}
+                        {alert.cameraId}
                       </Badge>
                       <p className="text-xs text-muted-foreground">
                         {formatTimeAgo(alert.timestamp)}

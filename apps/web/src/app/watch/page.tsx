@@ -133,7 +133,6 @@ export default function WatchPage() {
                 autoPlay={true}
                 muted={isMuted}
                 controls={showControls}
-                fullWidth={true}
                 className="w-full h-full"
               />
               

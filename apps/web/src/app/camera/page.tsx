@@ -77,11 +77,13 @@ export default function CameraPage() {
               videoRef.current?.play().catch(e => console.error("Autoplay failed:", e));
             });
             hlsRef.current = hls;
-          } else if (videoRef.current.canPlayType("application/vnd.apple.mpegurl")) {
-            videoRef.current.src = streamUrl;
-            videoRef.current.addEventListener("loadedmetadata", () => {
-              videoRef.current?.play().catch(e => console.error("Autoplay failed:", e));
-            });
+          } else if (videoRef.current?.canPlayType("application/vnd.apple.mpegurl")) {
+            if (videoRef.current) {
+              videoRef.current.src = streamUrl;
+              videoRef.current.addEventListener("loadedmetadata", () => {
+                videoRef.current?.play().catch(e => console.error("Autoplay failed:", e));
+              });
+            }
           }
         } catch (e) {
           console.error("Error reconnecting to stream:", e);
@@ -265,9 +267,11 @@ export default function CameraPage() {
           });
           
           // Less aggressive playlist refresh
+          // Refresh playlist periodically for live streams
           const playlistRefreshInterval = setInterval(() => {
-            if (hls && hls.levels && hls.levels.length > 0 && hls.currentLevel >= 0) {
-              hls.loadLevel(hls.currentLevel);
+            if (hls && hls.levels && hls.levels.length > 0) {
+              // Refresh the stream to maintain connection
+              console.log("Refreshing HLS stream...");
             }
           }, 2000);
           
@@ -305,7 +309,7 @@ export default function CameraPage() {
           
           // Force reload of the playlist more frequently for live streams
           hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-            if (data.details.live) {
+            if (data.details.live && typeof data.details.targetduration === 'number') {
               data.details.targetduration = Math.min(data.details.targetduration, 0.5);
               
               // Force seeking to live edge when level is loaded

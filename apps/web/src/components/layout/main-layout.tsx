@@ -27,7 +27,7 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const { status: wsStatus } = useWebSocket();
+  const { isConnected: wsStatus } = useWebSocket();
   const { theme, setTheme } = useTheme();
   
   // Close sidebar when navigating (on mobile)
