@@ -43,7 +43,7 @@ export default function DashboardPage() {
         hlsRef.current = null;
       }
 
-      if (Hls.isSupported()) {
+      if (Hls.isSupported() && videoRef.current) {
         const hls = new Hls({
           lowLatencyMode: true,
           liveSyncDuration: 1,
