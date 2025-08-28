@@ -62,7 +62,7 @@ Using advanced AI technology, SentinelAI connects to any commercial IP camera vi
 ### Prerequisites
 - Node.js 18+ (recommended 18.17.0 or higher)
 - npm or pnpm 8+ (pnpm is preferred)
-- Python 3.8+
+- Python 3.8+ (Python 3.13+ supported)
 - FFmpeg (required for video stream conversion)
 - curl (for downloading MediaMTX)
 
@@ -105,7 +105,7 @@ chmod +x setup.sh
 
 This script will:
 1. Download MediaMTX for your operating system
-2. Set up the Python virtual environment
+2. Set up the Python virtual environment with Python 3.13+ compatibility
 3. Install all dependencies for the backend, frontend, and stream configuration server
 4. Create necessary configuration files
 
@@ -147,7 +147,7 @@ pnpm install
 
 4. Install stream configuration server dependencies
 ```bash
-npm install cors express mkdirp
+npm install cors express js-yaml
 ```
 
 5. Set up backend environment
@@ -155,7 +155,8 @@ npm install cors express mkdirp
 cd apps/backend
 python -m venv venv
 source venv/bin/activate  # On Windows, use: venv\Scripts\activate
-pip install -r requirements.txt
+pip install --upgrade pip
+pip install flask flask-cors fastapi uvicorn websockets python-multipart
 cd ../..
 ```
 
@@ -179,10 +180,12 @@ chmod +x start.sh
 ./start.sh
 ```
 
-This script will start:
-1. Stream configuration server (using FFmpeg for RTSP to HLS conversion)
-2. Backend server
-3. Frontend server
+This script will automatically:
+1. Check and install missing dependencies if needed
+2. Start MediaMTX (HLS streaming server)
+3. Start the stream configuration server (RTSP to HLS conversion)
+4. Start the backend server (Python FastAPI/Flask)
+5. Start the frontend server (Next.js)
 
 ### Manual Start
 
@@ -296,6 +299,14 @@ ffmpeg -version
 ```
 
 If not installed, follow the FFmpeg installation instructions in the Prerequisites section.
+
+#### Python 3.13 Compatibility Issues
+
+If you encounter Python 3.13 compatibility issues:
+
+1. The setup script now automatically handles Python 3.13+ compatibility
+2. Dependencies are installed with flexible versioning
+3. If issues persist, try using Python 3.11 or 3.12
 
 #### Stream Configuration Issues
 

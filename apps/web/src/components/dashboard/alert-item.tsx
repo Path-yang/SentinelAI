@@ -50,7 +50,7 @@ export function AlertItem({ alert, index, cameraName }: AlertItemProps) {
                   </div>
                   <div className="flex items-center mt-1 text-xs text-muted-foreground">
                     <Camera className="h-3 w-3 mr-1" />
-                    <span>{cameraName || alert.camera_id}</span>
+                    <span>{cameraName || alert.cameraId}</span>
                   </div>
                 </div>
               </div>

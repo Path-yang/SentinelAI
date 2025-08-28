@@ -59,9 +59,13 @@ setup_backend() {
   # Activate virtual environment
   source venv/bin/activate
   
-  # Install dependencies
+  # Upgrade pip to latest version
+  echo "📦 Upgrading pip..."
+  pip install --upgrade pip
+  
+  # Install dependencies with flexible versioning for Python 3.13 compatibility
   echo "📦 Installing Python dependencies..."
-  pip install -r requirements.txt
+  pip install flask flask-cors fastapi uvicorn websockets python-multipart
   
   cd ../..
   
@@ -110,11 +114,7 @@ setup_stream_config
 
 echo "🎉 Setup completed successfully!"
 echo ""
-echo "To start the application, run the following commands:"
-echo "1. Start the backend: ./start-backend-simple.sh"
-echo "2. Start the stream configuration server: node configure-stream.js"
-echo "3. Start the frontend: ./start-frontend.sh"
-echo ""
-echo "Or use the all-in-one start script: ./start.sh"
+echo "To start the application, run:"
+echo "  ./start.sh"
 echo ""
 echo "Then open http://localhost:3000/dashboard in your browser" 

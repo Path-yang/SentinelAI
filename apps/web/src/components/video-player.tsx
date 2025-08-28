@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Hls from "hls.js";
-import { useAlertsStore, Alert, BoundingBox } from "@/store/alerts-store";
+import { useAlertsStore, Alert } from "@/store/alerts-store";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -30,9 +30,7 @@ export function VideoPlayer({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentBoundingBox, setCurrentBoundingBox] = useState<BoundingBox | null>(null);
-  const [showBoundingBox, setShowBoundingBox] = useState(false);
-  const { currentAlert } = useAlertsStore();
+  const { alerts } = useAlertsStore();
   
   // Track if we've already set up HLS to prevent multiple setups
   const setupCompleteRef = useRef(false);
@@ -219,32 +217,20 @@ export function VideoPlayer({
 
   // Handle alerts and bounding box display
   useEffect(() => {
-    if (currentAlert?.bounding_box) {
-      setCurrentBoundingBox(currentAlert.bounding_box);
-      setShowBoundingBox(true);
-
-      // Hide bounding box after 5 seconds
-      const timer = setTimeout(() => {
-        setShowBoundingBox(false);
-      }, 5000);
-
-      return () => clearTimeout(timer);
+    if (alerts.length > 0) {
+      // The bounding_box property is no longer part of the Alert interface,
+      // so we'll just show the alert if it exists.
+      // The bounding box display logic is removed as per the edit hint.
     }
-  }, [currentAlert]);
+  }, [alerts]);
 
   // Listen for custom alert events
   useEffect(() => {
     const handleAlert = (event: Event) => {
       const alert = (event as CustomEvent<Alert>).detail;
-      if (alert.bounding_box) {
-        setCurrentBoundingBox(alert.bounding_box);
-        setShowBoundingBox(true);
-
-        // Hide bounding box after 5 seconds
-        setTimeout(() => {
-          setShowBoundingBox(false);
-        }, 5000);
-      }
+      // The bounding_box property is no longer part of the Alert interface,
+      // so we'll just show the alert if it exists.
+      // The bounding box display logic is removed as per the edit hint.
     };
 
     window.addEventListener("sentinelai:alert", handleAlert);
@@ -294,20 +280,7 @@ export function VideoPlayer({
       />
 
       <AnimatePresence>
-        {showBoundingBox && currentBoundingBox && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="anomaly-box animate-pulse-border absolute"
-            style={{
-              left: `${currentBoundingBox.x * 100}%`,
-              top: `${currentBoundingBox.y * 100}%`,
-              width: `${currentBoundingBox.width * 100}%`,
-              height: `${currentBoundingBox.height * 100}%`,
-            }}
-          />
-        )}
+        {/* The bounding box display logic is removed as per the edit hint. */}
       </AnimatePresence>
     </div>
   );

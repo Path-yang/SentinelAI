@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export interface Event {
   id: string;
-  camera_id: string;
+  cameraId: string;
   type: string;
   confidence: number;
   timestamp: string;
@@ -74,6 +74,13 @@ export const useAppStore = create<AppState>((set) => {
     },
   
   addEvent: (event) => set((state) => {
+    // Check if event with this ID already exists
+    const existingEvent = state.events.find(e => e.id === event.id);
+    if (existingEvent) {
+      console.log('Duplicate event prevented:', event);
+      return state; // Return unchanged state
+    }
+    
     // Add event and increment today's alert count
     return { 
       events: [event, ...state.events],
@@ -85,11 +92,19 @@ export const useAppStore = create<AppState>((set) => {
   }),
   
   addEvents: (newEvents) => set((state) => {
+    // Filter out duplicate events based on ID
+    const existingIds = new Set(state.events.map(e => e.id));
+    const uniqueNewEvents = newEvents.filter(event => !existingIds.has(event.id));
+    
+    if (uniqueNewEvents.length === 0) {
+      return state; // No new unique events to add
+    }
+    
     return { 
-      events: [...newEvents, ...state.events],
+      events: [...uniqueNewEvents, ...state.events],
       stats: {
         ...state.stats,
-        todayAlertCount: state.stats.todayAlertCount + newEvents.length,
+        todayAlertCount: state.stats.todayAlertCount + uniqueNewEvents.length,
       }
     };
   }),

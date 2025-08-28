@@ -214,7 +214,7 @@ export function InteractiveCameraControls() {
           <div className="grid grid-cols-2 gap-3">
             <Button
               variant="outline"
-              onClick={() => handleCameraAction('record', selectedCamera)}
+              onClick={() => selectedCamera && handleCameraAction('record', selectedCamera)}
               className="h-12"
             >
               <Zap className="w-4 h-4 mr-2" />
@@ -223,7 +223,7 @@ export function InteractiveCameraControls() {
             
             <Button
               variant="outline"
-              onClick={() => handleCameraAction('fullscreen', selectedCamera)}
+              onClick={() => selectedCamera && handleCameraAction('fullscreen', selectedCamera)}
               className="h-12"
             >
               <Maximize2 className="w-4 h-4 mr-2" />

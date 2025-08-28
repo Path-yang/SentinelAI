@@ -21,7 +21,23 @@ echo $STREAM_CONFIG_PID > streamconfig.pid
 # Start backend server
 echo "🔧 Starting backend server..."
 cd apps/backend
-source venv/bin/activate || { echo "❌ Failed to activate Python environment. Run 'cd apps/backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt' first"; exit 1; }
+
+# Check if virtual environment exists and has dependencies
+if [ ! -d "venv" ] || [ ! -f "venv/bin/activate" ]; then
+  echo "❌ Python virtual environment not found. Running setup..."
+  cd ../..
+  ./setup.sh
+  cd apps/backend
+fi
+
+source venv/bin/activate
+
+# Check if required packages are installed
+if ! python -c "import flask, fastapi, uvicorn" 2>/dev/null; then
+  echo "📦 Installing missing Python dependencies..."
+  pip install flask flask-cors fastapi uvicorn websockets python-multipart
+fi
+
 python simple_server.py &
 BACKEND_PID=$!
 echo $BACKEND_PID > ../../backend.pid

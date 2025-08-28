@@ -34,7 +34,7 @@ export default function CamerasPage() {
 
   // Count alerts per camera
   const alertCountByCamera = alerts.reduce((acc, alert) => {
-    acc[alert.camera_id] = (acc[alert.camera_id] || 0) + 1;
+    acc[alert.cameraId] = (acc[alert.cameraId] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
