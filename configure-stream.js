@@ -70,12 +70,16 @@ app.post('/api/test-connection', async (req, res) => {
     // Build the RTSP URL with credentials if provided
     let fullRtspUrl = rtspUrl;
     if (username && password) {
+      // Check if username already contains @ symbol (email address)
+      const safeUsername = username.includes('@') ? 
+        username.replace('@', '%40') : username;
+      
       // Extract protocol and host/path
       const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
       if (urlParts && urlParts.length === 3) {
         // Use username and password directly without URL encoding
         // This works better with special characters in many RTSP implementations
-        fullRtspUrl = `${urlParts[1]}${username}:${password}@${urlParts[2]}`;
+        fullRtspUrl = `${urlParts[1]}${safeUsername}:${password}@${urlParts[2]}`;
         console.log(`Using credentials in URL: ${fullRtspUrl}`);
       }
     }
@@ -155,11 +159,15 @@ app.post('/api/configure-stream', async (req, res) => {
     // Prepare RTSP URL with credentials if provided
     let fullRtspUrl = rtspUrl;
     if (username && password) {
+      // Check if username already contains @ symbol (email address)
+      const safeUsername = username.includes('@') ? 
+        username.replace('@', '%40') : username;
+        
       const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
       if (urlParts && urlParts.length === 3) {
         // Use username and password directly without URL encoding
         // This works better with special characters in many RTSP implementations
-        fullRtspUrl = `${urlParts[1]}${username}:${password}@${urlParts[2]}`;
+        fullRtspUrl = `${urlParts[1]}${safeUsername}:${password}@${urlParts[2]}`;
         console.log(`Using credentials in URL: ${fullRtspUrl}`);
       }
     }

@@ -249,126 +249,44 @@ export default function CameraPage() {
       }
       
       try {
+        // Update the HLS.js setup code to ensure it loads the stream correctly
         if (Hls.isSupported()) {
-          // More compatible HLS configuration
+          // More compatible HLS configuration with simpler settings
           const hls = new Hls({ 
             enableWorker: true,
-            lowLatencyMode: false, // Disable low latency mode for better compatibility
-            startLevel: 0,
-            capLevelToPlayerSize: true,
-            maxBufferLength: 10,
-            maxBufferSize: 10 * 1000 * 1000,
-            manifestLoadingTimeOut: 10000,
-            manifestLoadingMaxRetry: 6,
-            manifestLoadingRetryDelay: 1000,
-            appendErrorMaxRetry: 5,
-            testBandwidth: false,
-            debug: false
-          });
-          
-          // Less aggressive playlist refresh
-          // Refresh playlist periodically for live streams
-          const playlistRefreshInterval = setInterval(() => {
-            if (hls && hls.levels && hls.levels.length > 0) {
-              // Refresh the stream to maintain connection
-              console.log("Refreshing HLS stream...");
-            }
-          }, 2000);
-          
-          // Custom error handler to prevent showing network errors during initial connection
-          hls.on(Hls.Events.ERROR, (event, data) => {
-            // Only show fatal errors after we're connected
-            if (data.fatal && isConnected) {
-              console.error("HLS error:", data);
-              toast({ 
-                title: data.type === Hls.ErrorTypes.NETWORK_ERROR ? "Network Error" : "Playback Error",
-                description: "Stream connection issue. Trying to recover...",
-                variant: "destructive"
-              });
-              
-              // Attempt recovery based on error type
-              if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                setTimeout(() => hls.startLoad(), 1000);
-              } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                setTimeout(() => hls.recoverMediaError(), 1000);
-              }
-            } else if (!data.fatal) {
-              // For non-fatal errors, try to recover immediately
-              if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                hls.recoverMediaError();
-              } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                hls.startLoad();
-              }
-            }
-          });
-          
-          // Add level switching event handler
-          hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-            console.log(`HLS: Switched to level ${data.level}`);
-          });
-          
-          // Force reload of the playlist more frequently for live streams
-          hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-            if (data.details.live && typeof data.details.targetduration === 'number') {
-              data.details.targetduration = Math.min(data.details.targetduration, 0.5);
-              
-              // Force seeking to live edge when level is loaded
-              if (video && !video.paused && hls.liveSyncPosition) {
-                video.currentTime = hls.liveSyncPosition;
-              }
-            }
-          });
-          
-          // Use low latency mode if available
-          hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
-            if (data.frag.type === 'main') {
-              console.log(`HLS: Fragment loaded - duration: ${data.frag.duration}s`);
+            debug: true, // Enable debug logs to see what's happening
+            xhrSetup: function(xhr) {
+              // Disable caching for HLS requests
+              xhr.setRequestHeader('Cache-Control', 'no-cache');
             }
           });
           
           // Add timestamp to URL to prevent caching
           const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
+          console.log("Loading HLS source:", urlWithTimestamp);
+          
           hls.loadSource(urlWithTimestamp);
           hls.attachMedia(video);
+          
+          // Simple error handler
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            console.error("HLS error:", data);
+            if (data.fatal) {
+              if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                hls.startLoad();
+              } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                hls.recoverMediaError();
+              }
+            }
+          });
           
           hls.on(Hls.Events.MANIFEST_PARSED, () => { 
             setIsLoading(false); 
             setLocalIsConnected(true);
             setIsConnected(true);
             
-            // Set video properties for extreme low latency
-            video.preload = "auto";
-            video.muted = true; // Start muted to avoid autoplay issues
-            video.autoplay = true;
-            video.playsInline = true;
-            
-            // Reduce latency by setting playback rate slightly faster
-            const handleWaiting = () => {
-              video.playbackRate = 1.0; // Normal speed when buffering
-            };
-            
-            const handlePlaying = () => {
-              // Faster to catch up with live edge when playing smoothly
-              video.playbackRate = 1.05;
-            };
-            
-            video.addEventListener('waiting', handleWaiting);
-            video.addEventListener('playing', handlePlaying);
-            
-            // Force seeking to live edge
-            const seekToLiveEdge = () => {
-              if (hls && video && !video.paused) {
-                const liveEdge = hls.liveSyncPosition;
-                if (liveEdge && video.currentTime < liveEdge - 0.3) {
-                  console.log(`Seeking to live edge: ${liveEdge}`);
-                  video.currentTime = liveEdge;
-                }
-              }
-            };
-            
-            // Periodically seek to live edge
-            const liveEdgeInterval = setInterval(seekToLiveEdge, 2000);
-            
+            // Basic video setup
+            video.muted = true;
             video.play().catch(e => console.error("Autoplay failed:", e));
             
             // Show success toast
@@ -377,14 +295,6 @@ export default function CameraPage() {
               description: "Successfully connected to camera stream",
               variant: "default",
             });
-            
-            // Clean up event listeners and intervals
-            return () => {
-              video.removeEventListener('waiting', handleWaiting);
-              video.removeEventListener('playing', handlePlaying);
-              clearInterval(liveEdgeInterval);
-              clearInterval(playlistRefreshInterval);
-            };
           });
           
           hlsRef.current = hls;
