@@ -85,7 +85,7 @@ export function AlertsPanel() {
                       <div className="flex items-center space-x-2">
                         <AlertCircle
                           className={`w-4 h-4 ${
-                            alert.confidence > 0.8 ? "text-red-500" : "text-amber-500"
+                            ((alert.confidence ?? 0) > 0.8 ? "text-red-500" : "text-amber-500")
                           }`}
                         />
                         <span className="font-medium capitalize">{alert.type}</span>
