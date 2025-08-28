@@ -1,19 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { VideoPlayer } from "@/components/video-player";
-import { useWebSocket } from "@/hooks/use-websocket";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Shield, Heart, AlertTriangle, PieChart, Eye, Bell } from "lucide-react";
+import { ArrowLeft, Shield, Heart, AlertTriangle, PieChart, Eye, Bell, Check } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCameraStore } from "@/store/camera-store";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 
 // Define monitoring categories and options
-const monitoringOptions = [
+const detectionModels = [
   {
     id: "health",
     name: "Health & Safety",
@@ -60,37 +67,97 @@ const monitoringOptions = [
   }
 ];
 
-export default function WatchPage() {
-  const { isConnected } = useWebSocket({
-    url: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:10000/ws/alerts",
-  });
+export default function AIDetectionPage() {
+  const router = useRouter();
+  const { toast } = useToast();
   
-  const { streamUrl } = useCameraStore();
   const [activeCategory, setActiveCategory] = useState("health");
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
-  const [alertLevel, setAlertLevel] = useState<"low" | "medium" | "high">("medium");
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [processingModel, setProcessingModel] = useState<string | null>(null);
 
   // Toggle monitoring option
   const toggleOption = (optionId: string) => {
-    setSelectedOptions(prev => 
-      prev.includes(optionId) 
-        ? prev.filter(id => id !== optionId) 
-        : [...prev, optionId]
-    );
+    if (selectedOptions.includes(optionId)) {
+      setSelectedOptions(prev => prev.filter(id => id !== optionId));
+    } else {
+      setProcessingModel(optionId);
+      setIsConfirmOpen(true);
+    }
   };
 
-  // Count active options by category
-  const getActiveCounts = () => {
-    return monitoringOptions.reduce((acc, category) => {
-      acc[category.id] = category.options.filter(option => 
-        selectedOptions.includes(option.id)
-      ).length;
-      return acc;
-    }, {} as Record<string, number>);
+  // Confirm selection
+  const confirmSelection = () => {
+    if (processingModel) {
+      setSelectedOptions(prev => [...prev, processingModel]);
+      setIsConfirmOpen(false);
+      
+      // Get the model details for the toast
+      let modelName = "";
+      let categoryName = "";
+      
+      for (const category of detectionModels) {
+        for (const option of category.options) {
+          if (option.id === processingModel) {
+            modelName = option.name;
+            categoryName = category.name;
+            break;
+          }
+        }
+      }
+      
+      toast({
+        title: `${modelName} activated`,
+        description: `This model will now be used to monitor your camera feed.`,
+      });
+    }
   };
 
-  const activeCounts = getActiveCounts();
-  const totalActive = selectedOptions.length;
+  // Apply selected models and go back to dashboard
+  const applyModels = () => {
+    // In a real app, you would save these selections to a global state or backend
+    localStorage.setItem('activeAIModels', JSON.stringify(selectedOptions));
+    
+    toast({
+      title: `AI Detection Active`,
+      description: `${selectedOptions.length} detection model${selectedOptions.length !== 1 ? 's' : ''} activated.`,
+    });
+    
+    // Navigate back to dashboard
+    router.push('/dashboard');
+  };
+
+  // Get model name by ID
+  const getModelName = (modelId: string) => {
+    for (const category of detectionModels) {
+      for (const option of category.options) {
+        if (option.id === modelId) {
+          return option.name;
+        }
+      }
+    }
+    return modelId;
+  };
+
+  // Get the selected model details for confirmation
+  const getSelectedModelDetails = () => {
+    if (!processingModel) return null;
+    
+    for (const category of detectionModels) {
+      for (const option of category.options) {
+        if (option.id === processingModel) {
+          return {
+            name: option.name,
+            description: option.description,
+            category: category.name
+          };
+        }
+      }
+    }
+    return null;
+  };
+
+  const selectedModelDetails = getSelectedModelDetails();
 
   return (
     <div className="container mx-auto py-4">
@@ -102,203 +169,188 @@ export default function WatchPage() {
               Back to Dashboard
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold tracking-tight">Live Stream</h1>
+          <h1 className="text-2xl font-bold tracking-tight">AI Detection Models</h1>
         </div>
+        
         <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-2">
-            <div className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}></div>
-            <span className="text-sm text-muted-foreground">
-              {isConnected ? "Connected" : "Disconnected"}
-            </span>
-          </div>
-          {totalActive > 0 && (
+          {selectedOptions.length > 0 && (
             <Badge className="bg-primary">
               <Eye className="w-3 h-3 mr-1" />
-              {totalActive} Active
+              {selectedOptions.length} Selected
             </Badge>
           )}
+          
+          <Button 
+            onClick={applyModels} 
+            disabled={selectedOptions.length === 0}
+            className="ml-2"
+          >
+            Apply & Return to Dashboard
+          </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Video Player */}
-          <Card>
-            <CardContent className="p-4">
-              <VideoPlayer
-                src={streamUrl || process.env.NEXT_PUBLIC_HLS_URL || "http://localhost:8084/mystream/index.m3u8"}
-                className="w-full aspect-video rounded-md overflow-hidden"
-              />
-            </CardContent>
-          </Card>
-
-          {/* Active Monitoring Summary */}
-          {totalActive > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Bell className="w-5 h-5 mr-2 text-primary" />
-                  Active Monitoring
-                </CardTitle>
-                <CardDescription>
-                  SentinelAI is actively monitoring for {totalActive} different conditions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {monitoringOptions.map(category => {
-                    const count = activeCounts[category.id];
-                    if (count === 0) return null;
-                    
-                    return (
-                      <div key={category.id} className="flex items-start space-x-3">
-                        <category.icon className="w-5 h-5 text-primary mt-0.5" />
-                        <div>
-                          <h3 className="font-medium">{category.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {count} active condition{count !== 1 ? 's' : ''}
-                          </p>
-                          <div className="mt-1 space-y-1">
-                            {category.options.map(option => {
-                              if (!selectedOptions.includes(option.id)) return null;
-                              
-                              return (
-                                <Badge key={option.id} variant="outline" className="mr-1 mt-1">
-                                  {option.name}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                <div className="mt-4 flex justify-between items-center border-t pt-4">
-                  <div>
-                    <span className="text-sm font-medium">Alert Sensitivity:</span>
-                    <div className="flex space-x-2 mt-1">
-                      <Badge 
-                        variant={alertLevel === "low" ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => setAlertLevel("low")}
-                      >
-                        Low
-                      </Badge>
-                      <Badge 
-                        variant={alertLevel === "medium" ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => setAlertLevel("medium")}
-                      >
-                        Medium
-                      </Badge>
-                      <Badge 
-                        variant={alertLevel === "high" ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => setAlertLevel("high")}
-                      >
-                        High
-                      </Badge>
-                    </div>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setSelectedOptions([])}
-                  >
-                    Stop All Monitoring
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+      <div className="grid gap-6 md:grid-cols-6">
+        {/* Category tabs */}
+        <div className="md:col-span-6">
+          <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
+            <TabsList className="grid grid-cols-4 mb-4">
+              {detectionModels.map(category => (
+                <TabsTrigger 
+                  key={category.id} 
+                  value={category.id}
+                  className="flex items-center gap-2"
+                >
+                  <category.icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{category.name}</span>
+                  {category.options.some(option => selectedOptions.includes(option.id)) && (
+                    <Badge variant="secondary" className="ml-auto">
+                      {category.options.filter(option => selectedOptions.includes(option.id)).length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
         
-        {/* Monitoring Options */}
-        <div className="space-y-6">
+        {/* Active category models */}
+        <div className="md:col-span-6">
           <Card>
             <CardHeader>
-              <CardTitle>Monitoring Options</CardTitle>
+              <CardTitle>
+                {detectionModels.find(c => c.id === activeCategory)?.name} Models
+              </CardTitle>
               <CardDescription>
-                Select what you want SentinelAI to monitor for
+                {detectionModels.find(c => c.id === activeCategory)?.description}
               </CardDescription>
-              <Tabs value={activeCategory} onValueChange={setActiveCategory} className="mt-2">
-                <TabsList className="grid grid-cols-4">
-                  {monitoringOptions.map(category => (
-                    <TabsTrigger 
-                      key={category.id} 
-                      value={category.id}
-                      className="relative"
-                    >
-                      <category.icon className="h-4 w-4" />
-                      {activeCounts[category.id] > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                          {activeCounts[category.id]}
-                        </span>
-                      )}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {monitoringOptions.find(c => c.id === activeCategory)?.options.map(option => (
-                  <div 
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {detectionModels.find(c => c.id === activeCategory)?.options.map(option => (
+                  <Card 
                     key={option.id} 
-                    className="flex items-center justify-between py-2"
+                    className={`hover:bg-accent/30 transition-colors cursor-pointer ${
+                      selectedOptions.includes(option.id) ? "border-primary bg-primary/5" : ""
+                    }`}
+                    onClick={() => toggleOption(option.id)}
                   >
-                    <div>
-                      <h3 className="font-medium">{option.name}</h3>
-                      <p className="text-sm text-muted-foreground">{option.description}</p>
-                    </div>
-                    <Switch 
-                      checked={selectedOptions.includes(option.id)}
-                      onCheckedChange={() => toggleOption(option.id)}
-                    />
-                  </div>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-medium flex items-center">
+                            {option.name}
+                            {selectedOptions.includes(option.id) && (
+                              <Check className="w-4 h-4 ml-2 text-primary" />
+                            )}
+                          </h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {option.description}
+                          </p>
+                        </div>
+                        <Switch 
+                          checked={selectedOptions.includes(option.id)}
+                          onCheckedChange={() => toggleOption(option.id)}
+                          className="mt-1"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </CardContent>
           </Card>
-          
-          {/* Alert Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Alert Settings</CardTitle>
-              <CardDescription>
-                Configure how you want to be notified
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">In-App Notifications</h3>
-                    <p className="text-sm text-muted-foreground">Show alerts in the app</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">Sound Alerts</h3>
-                    <p className="text-sm text-muted-foreground">Play sound when alert triggers</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">Email Notifications</h3>
-                    <p className="text-sm text-muted-foreground">Send email for critical alerts</p>
-                  </div>
-                  <Switch />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
+        
+        {/* Selected models summary */}
+        {selectedOptions.length > 0 && (
+          <div className="md:col-span-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Bell className="w-5 h-5 mr-2 text-primary" />
+                  Selected Detection Models
+                </CardTitle>
+                <CardDescription>
+                  These models will be applied to your camera feed
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {selectedOptions.map(optionId => (
+                    <div 
+                      key={optionId} 
+                      className="flex items-center justify-between border rounded-md p-2"
+                    >
+                      <span>{getModelName(optionId)}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => toggleOption(optionId)}
+                      >
+                        <span className="sr-only">Remove</span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-4 w-4"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex justify-end mt-4">
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => setSelectedOptions([])}
+                    className="mr-2"
+                  >
+                    Clear All
+                  </Button>
+                  <Button onClick={applyModels}>
+                    Apply & Return to Dashboard
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
+      
+      {/* Confirmation Dialog */}
+      <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Activate {selectedModelDetails?.name}</DialogTitle>
+            <DialogDescription>
+              This will add {selectedModelDetails?.name} detection to your camera monitoring system.
+              <div className="mt-2 p-2 bg-muted rounded-md">
+                <p><strong>Category:</strong> {selectedModelDetails?.category}</p>
+                <p><strong>Function:</strong> {selectedModelDetails?.description}</p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmSelection}>
+              Activate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
