@@ -16,6 +16,8 @@ export interface Alert {
   imageUrl?: string;
   /** Confidence score for the alert (0 to 1) */
   confidence?: number;
+  /** Description of the alert */
+  description?: string;
   acknowledged: boolean;
 }
 
