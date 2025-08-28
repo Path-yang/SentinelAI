@@ -91,7 +91,7 @@ export function AlertsPanel() {
                         <span className="font-medium capitalize">{alert.type}</span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {alert.description || `Detected with ${Math.round(alert.confidence * 100)}% confidence`}
+                        {alert.description ?? `Detected with ${Math.round((alert.confidence ?? 0) * 100)}% confidence`}
                       </p>
                     </div>
                     <div className="text-right">
