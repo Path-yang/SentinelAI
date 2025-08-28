@@ -11,8 +11,8 @@ import { useCameraStore } from "@/store/camera-store";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "AI Detection", href: "/dashboard/watch", icon: Activity },
   { name: "Connect Camera", href: "/camera", icon: Camera },
+  { name: "AI Detection", href: "/dashboard/watch", icon: Activity },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
