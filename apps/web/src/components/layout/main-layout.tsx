@@ -19,6 +19,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { Button } from "@/components/ui/button";
+import { useCameraStore } from "@/store/camera-store";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -27,10 +28,7 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const { isConnected: wsStatus } = useWebSocket({
-    url: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:10000/ws/alerts",
-    silent: true,
-  });
+  const { isConnected } = useCameraStore();
   const { theme, setTheme } = useTheme();
   
   // Close sidebar when navigating (on mobile)
@@ -109,10 +107,10 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
                 <div className={`h-2 w-2 rounded-full ${
-                  wsStatus ? 'bg-green-500' : 'bg-red-500'
+                  isConnected ? 'bg-green-500' : 'bg-red-500'
                 }`} />
                 <span className="text-sm text-muted-foreground">
-                  {wsStatus ? 'Connected' : 'Disconnected'}
+                  {isConnected ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
               

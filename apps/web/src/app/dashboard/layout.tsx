@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Home, Video, Camera, Settings, X, Menu, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useCameraStore } from "@/store/camera-store";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -22,6 +23,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isConnected } = useCameraStore();
 
   return (
     <div className="flex h-screen bg-background">
@@ -83,8 +85,10 @@ export default function DashboardLayout({
           <div className="p-4 border-t">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
-                <div className="h-2 w-2 rounded-full bg-red-500"></div>
-                <span className="text-sm text-muted-foreground">Disconnected</span>
+                <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm text-muted-foreground">
+                  {isConnected ? 'Connected' : 'Disconnected'}
+                </span>
               </div>
               <Button
                 variant="ghost"
