@@ -1,7 +1,7 @@
-// Fix dashboard video display issue
+// Add refresh button
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { VideoPlayer } from "@/components/video-player";
 import { AlertsPanel } from "@/components/alerts-panel";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,14 @@ import { useCameraStore } from "@/store/camera-store";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Video } from "lucide-react";
+import { Zap, Video, RefreshCw } from "lucide-react";
 
 export default function DashboardPage() {
   const { streamUrl, isConnected, cameraDetails } = useCameraStore();
   const router = useRouter();
   const [videoSource, setVideoSource] = useState<string | null>(null);
   const [cameraIp, setCameraIp] = useState<string>("");
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Set video source when streamUrl changes
   useEffect(() => {
@@ -32,6 +33,14 @@ export default function DashboardPage() {
 
   const handleManageCamera = () => {
     router.push("/camera");
+  };
+  
+  const handleRefresh = () => {
+    if (isConnected && streamUrl) {
+      // Update video source with new timestamp and increment refresh key
+      setVideoSource(`${streamUrl}?_t=${Date.now()}`);
+      setRefreshKey(prev => prev + 1);
+    }
   };
 
   return (
@@ -57,22 +66,33 @@ export default function DashboardPage() {
             <CardHeader className="pb-2">
               <div className="flex justify-between items-center">
                 <CardTitle>Live Feed</CardTitle>
-                {isConnected && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      <div className="w-2 h-2 rounded-full bg-green-500 mr-1"></div> Live
-                    </Badge>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      <Zap className="w-3 h-3 mr-1" /> AI Active
-                    </Badge>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  {isConnected && (
+                    <>
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        <div className="w-2 h-2 rounded-full bg-green-500 mr-1"></div> Live
+                      </Badge>
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                        <Zap className="w-3 h-3 mr-1" /> AI Active
+                      </Badge>
+                    </>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleRefresh} 
+                    disabled={!isConnected}
+                    title="Refresh video"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               {cameraIp && <p className="text-sm text-muted-foreground">Camera: {cameraIp}</p>}
             </CardHeader>
             <CardContent>
               {videoSource ? (
-                <div key={videoSource}>
+                <div key={`${videoSource}-${refreshKey}`}>
                   <VideoPlayer 
                     src={videoSource} 
                     className="rounded-md overflow-hidden w-full aspect-video" 
