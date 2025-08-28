@@ -231,7 +231,7 @@ app.post('/api/configure-stream', async (req, res) => {
     });
     
     // Wait a moment to ensure FFmpeg has started generating segments
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // return HLS URL with server IP for cross-network access
     return res.json({ 

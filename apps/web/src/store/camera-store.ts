@@ -52,20 +52,4 @@ export const useCameraStore = create<CameraState>()(
       name: 'camera-storage',
     }
   )
-);
-
-// Reset store on first load to clear any persisted data
-// This helps prevent issues with cached streams
-if (typeof window !== 'undefined') {
-  // Only run in browser, not during SSR
-  setTimeout(() => {
-    const persistedState = JSON.parse(localStorage.getItem('camera-storage') || '{}');
-    const isFirstLoad = !localStorage.getItem('camera-store-initialized');
-    
-    if (isFirstLoad || (persistedState?.state?.isConnected && !document.hasFocus())) {
-      console.log('Resetting camera store state on first load or because tab was inactive');
-      useCameraStore.getState().disconnect();
-      localStorage.setItem('camera-store-initialized', 'true');
-    }
-  }, 100);
-} 
+); 

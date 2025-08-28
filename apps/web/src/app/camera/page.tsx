@@ -10,6 +10,21 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCameraStore } from "@/store/camera-store";
 
+// Add helper to wait for HLS manifest availability
+const waitForManifest = async (url: string) => {
+  const maxAttempts = 12;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      if (res.ok) return;
+    } catch (e) {
+      // ignore
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error('Manifest not available');
+};
+
 // Direct HLS test stream that works
 const TEST_STREAM_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
@@ -227,19 +242,22 @@ export default function CameraPage() {
       
       const { hlsUrl, serverIp: streamServerIp } = await resp.json();
       const finalUrl = hlsUrl;
-      
-      console.log('Stream configured successfully:', {
-        hlsUrl: finalUrl,
-        serverIp: streamServerIp
-      });
-      
-      // Log the server IP for debugging
-      if (streamServerIp) {
-        console.log(`Stream server IP: ${streamServerIp}`);
-      }
-
-      // Save stream URL to store
+      console.log('Stream configured successfully:', { hlsUrl: finalUrl, serverIp: streamServerIp });
+      // Save stream URL to store and mark connected immediately
       setStreamUrl(finalUrl);
+      setLocalIsConnected(true);
+      setIsConnected(true);
+      // Stop loading spinner
+      await setIsLoading(true);
+
+      // Wait for HLS manifest to be ready before loading
+      try {
+        await waitForManifest(finalUrl);
+      } catch (e) {
+        toast({ title: 'Stream Not Ready', description: 'Could not load stream manifest.', variant: 'destructive' });
+        setIsLoading(false);
+        return;
+      }
 
       const video = videoRef.current; 
       if (!video) {
@@ -261,15 +279,26 @@ export default function CameraPage() {
           debug: false
         });
         
-        // Add timestamp to URL to prevent caching
-        const urlWithTimestamp = `${finalUrl}?_t=${Date.now()}`;
+        // Use finalUrl directly since server disables caching
+        const urlWithTimestamp = finalUrl;
         console.log("Loading HLS source:", urlWithTimestamp);
         
         // Set up error handling before loading source
         hls.on(Hls.Events.ERROR, function(event, data) {
-          // Don't log the empty object to console
-          if (data && Object.keys(data).length > 0) {
-            console.error("HLS error:", JSON.stringify(data));
+          // Stop loading spinner on fatal errors (but do not disconnect)
+          if (data && data.fatal) {
+            setIsLoading(false);
+          }
+          // Suppress detailed HLS error logs for manifest load failures
+          if (data && !(data.type === Hls.ErrorTypes.NETWORK_ERROR && data.details === 'manifestLoadError')) {
+            console.warn("HLS error:", data.type, data.details);
+          }
+          // Handle manifest load errors gracefully
+          if (data && data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR && data.details === 'manifestLoadError') {
+            // Notify user and stop loading
+            toast({ title: "Stream Not Found", description: "Could not load video stream.", variant: "destructive" });
+            setIsLoading(false);
+            return;
           }
           
           if (data && data.fatal) {
@@ -306,6 +335,7 @@ export default function CameraPage() {
           console.log('HLS manifest parsed, starting playback');
           setIsLoading(false);
           setLocalIsConnected(true);
+          // Mark connected after manifest parsed
           setIsConnected(true);
           
           // Basic video setup for low latency
@@ -497,7 +527,7 @@ export default function CameraPage() {
             </CardHeader>
             <CardContent>
               <div className="relative bg-black rounded-md overflow-hidden aspect-video">
-                {isLoading && (
+                {isLoading && !isConnected && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
                     <div className="flex flex-col items-center space-y-2">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
