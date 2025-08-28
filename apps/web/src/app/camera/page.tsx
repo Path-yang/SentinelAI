@@ -110,7 +110,7 @@ export default function CameraPage() {
     storeDisconnect();
   };
 
-  // Update validation to actually test the RTSP connection
+  // Update validateInputs to log more information
   const validateInputs = async (): Promise<boolean> => {
     if (!ip) { 
       toast({ title: "Error", description: "Please enter camera IP", variant: "destructive" }); 
@@ -132,6 +132,13 @@ export default function CameraPage() {
       let testRtspUrl = `rtsp://`;
       testRtspUrl += `${ip}:${port}/${path}`;
       
+      console.log('Testing connection with:', {
+        rtspUrl: testRtspUrl,
+        username: username ? '(provided)' : '(not provided)',
+        password: password ? '(provided)' : '(not provided)',
+        serverIp
+      });
+      
       // Test the connection first
       const testResp = await fetch(apiUrl, {
         method: 'POST',
@@ -145,6 +152,7 @@ export default function CameraPage() {
       });
       
       const testResult = await testResp.json();
+      console.log('Connection test result:', testResult);
       
       if (!testResp.ok || !testResult.success) {
         toast({ 
@@ -161,7 +169,7 @@ export default function CameraPage() {
       console.error("Error testing connection:", error);
       toast({ 
         title: "Connection Error", 
-        description: "Failed to test camera connection", 
+        description: "Failed to test camera connection. Make sure the stream configuration server is running.", 
         variant: "destructive" 
       });
       setIsLoading(false);
@@ -183,6 +191,15 @@ export default function CameraPage() {
     // Use the detected server IP or fall back to localhost
     const apiUrl = serverIp ? `http://${serverIp}:3001/api/configure-stream` : 'http://localhost:3001/api/configure-stream';
     
+    console.log('Connecting to stream with:', {
+      streamName,
+      rtspUrl,
+      username: username ? '(provided)' : '(not provided)',
+      password: password ? '(provided)' : '(not provided)',
+      serverIp,
+      apiUrl
+    });
+    
     // Configure stream via API with extreme low-latency flag
     try {
       const resp = await fetch(apiUrl, {
@@ -200,6 +217,7 @@ export default function CameraPage() {
       
       if (!resp.ok) {
         const err = await resp.json(); 
+        console.error('Stream configuration failed:', err);
         toast({ title:"Error", description:err.error||"Configuration failed", variant:"destructive" }); 
         setIsLoading(false); 
         return;
@@ -207,6 +225,11 @@ export default function CameraPage() {
       
       const { hlsUrl, serverIp: streamServerIp } = await resp.json();
       const finalUrl = hlsUrl;
+      
+      console.log('Stream configured successfully:', {
+        hlsUrl: finalUrl,
+        serverIp: streamServerIp
+      });
       
       // Log the server IP for debugging
       if (streamServerIp) {
@@ -218,6 +241,7 @@ export default function CameraPage() {
 
       const video = videoRef.current; 
       if (!video) {
+        console.error('Video element not found');
         setIsLoading(false);
         return;
       }
@@ -405,7 +429,11 @@ export default function CameraPage() {
     } catch (e) {
       console.error("Stream configuration error:", e);
       setIsLoading(false);
-      toast({ title:"Error", description:"Failed to configure stream", variant:"destructive" });
+      toast({ 
+        title:"Error", 
+        description:"Failed to configure stream. Make sure the stream configuration server is running.", 
+        variant:"destructive" 
+      });
       forceDisconnect();
     }
   };

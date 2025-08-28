@@ -57,25 +57,36 @@ app.use('/hls', (req, res, next) => {
 }));
 
 // POST /api/configure-stream
-// body: { streamName, rtspUrl }
 app.post('/api/configure-stream', async (req, res) => {
   try {
-    const { streamName, rtspUrl, username, password } = req.body;
+    const { streamName, rtspUrl, username, password, lowLatency, extremeLatency } = req.body;
+    
     if (!streamName || !rtspUrl) {
       return res.status(400).json({ error: 'Stream name and RTSP URL are required' });
     }
-    // sanitize streamName
-    if (!/^[a-zA-Z0-9_\-]+$/.test(streamName)) {
-      return res.status(400).json({ error: 'Invalid stream name' });
-    }
-    // kill old process if exists
+    
+    console.log(`Configuring stream ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
+    
+    // Create output directory
+    const outDir = path.join(__dirname, 'hls', streamName);
+    await mkdirp(outDir);
+    
+    // Kill any existing FFmpeg process for this stream
     if (ffmpegProcs[streamName]) {
+      console.log(`Killing existing FFmpeg process for ${streamName}`);
       ffmpegProcs[streamName].kill('SIGKILL');
       delete ffmpegProcs[streamName];
     }
-    // prepare output directory
-    const outDir = path.join(__dirname, 'hls', streamName);
-    await mkdirp(outDir);
+    
+    // Build the RTSP URL with credentials if provided
+    let fullRtspUrl = rtspUrl;
+    if (username && password) {
+      // Extract protocol and the rest
+      const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
+      if (urlParts && urlParts.length === 3) {
+        fullRtspUrl = `${urlParts[1]}${encodeURIComponent(username)}:${encodeURIComponent(password)}@${urlParts[2]}`;
+      }
+    }
     
     // spawn ffmpeg with extreme low-latency settings
     console.log(`Starting FFmpeg for ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
@@ -115,15 +126,15 @@ app.post('/api/configure-stream', async (req, res) => {
       '-analyzeduration', '500000', // 0.5 seconds analysis (in microseconds)
       '-probesize', '32000', // Minimal probe size
       
-      // Authentication if needed
-      ...(username ? ['-user_agent', 'SentinelAI'] : []),
-      ...(username && password ? [
-        '-username', username,
-        '-password', password
-      ] : []),
+      // Authentication if needed - removed as we're using URL-based auth
+      // ...(username ? ['-user_agent', 'SentinelAI'] : []),
+      // ...(username && password ? [
+      //   '-username', username,
+      //   '-password', password
+      // ] : []),
       
       // Input source with minimal buffering
-      '-i', rtspUrl,
+      '-i', fullRtspUrl,
       
       // Video codec settings - optimized for latency over quality
       '-c:v', 'libx264',
@@ -196,9 +207,9 @@ app.post('/api/configure-stream', async (req, res) => {
   }
 });
 
-// POST /api/test-connection
-// Tests if a RTSP URL can be connected to
+// Fix the test-connection endpoint
 app.post('/api/test-connection', async (req, res) => {
+  console.log('Received test-connection request:', req.body);
   try {
     const { rtspUrl, username, password, timeout = 5 } = req.body;
     if (!rtspUrl) {
@@ -207,19 +218,27 @@ app.post('/api/test-connection', async (req, res) => {
 
     console.log(`Testing RTSP connection to: ${rtspUrl}`);
     
+    // Build the RTSP URL with credentials if provided
+    let fullRtspUrl = rtspUrl;
+    if (username && password) {
+      // Extract protocol and the rest
+      const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
+      if (urlParts && urlParts.length === 3) {
+        fullRtspUrl = `${urlParts[1]}${encodeURIComponent(username)}:${encodeURIComponent(password)}@${urlParts[2]}`;
+      }
+    }
+    
     // Prepare FFmpeg command for connection test
     const args = [
       '-timeout', `${timeout * 1000000}`, // Convert seconds to microseconds
       '-rtsp_transport', 'tcp',
-      ...(username && password ? [
-        '-username', username,
-        '-password', password
-      ] : []),
-      '-i', rtspUrl,
+      '-i', fullRtspUrl,
       '-t', '1', // Capture just 1 second
       '-f', 'null', // Output to null device
       '-'  // Output to stdout (which we ignore)
     ];
+    
+    console.log(`FFmpeg test command: ffmpeg ${args.join(' ')}`);
     
     // Use a promise with timeout to limit test duration
     const testPromise = new Promise((resolve, reject) => {
@@ -310,18 +329,20 @@ app.post('/api/remove-stream', (req, res) => {
 });
 
 // Server information endpoint
-app.get('/api/server-info', (_req, res) => {
-  res.json({ 
-    ip: SERVER_IP,
-    port: PORT,
-    platform: process.platform,
-    nodejs: process.version
-  });
+app.get('/api/server-info', (req, res) => {
+  console.log('Received server-info request');
+  res.json({ ip: SERVER_IP });
 });
 
 // health check
 app.get('/api/status', (_req, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Stream configuration server listening on http://${SERVER_IP}:${PORT}`);
+  console.log(`Stream configuration server running on port ${PORT}`);
+  console.log(`Server IP: ${SERVER_IP}`);
+  console.log(`Available endpoints:`);
+  console.log(`- POST /api/configure-stream`);
+  console.log(`- DELETE /api/remove-stream`);
+  console.log(`- POST /api/test-connection`);
+  console.log(`- GET /api/server-info`);
 }); 
