@@ -35,7 +35,7 @@ export const initHlsInstance = (
     progressive: true,
     // Minimal loading delays
     maxLoadingDelay: 0.5,
-    maxBufferStarvationDelay: 0.5,
+    maxStarvationDelay: 0.5,
     // Disable features that add latency
     enableSoftwareAES: false,
     enableDateRangeMetadataCues: false,

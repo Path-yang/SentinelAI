@@ -14,8 +14,8 @@ events = []
 
 # Add some sample events
 events.append({
-    "id": "1",
-    "camera_id": "camera_bedroom",
+    "id": str(uuid.uuid4()),
+    "cameraId": "camera_bedroom",
     "type": "immobility",
     "confidence": 0.89,
     "timestamp": datetime.now().isoformat(),
@@ -23,8 +23,8 @@ events.append({
 })
     
 events.append({
-    "id": "2",
-    "camera_id": "camera_living_room",
+    "id": str(uuid.uuid4()),
+    "cameraId": "camera_living_room",
     "type": "fall",
     "confidence": 0.92,
     "timestamp": datetime.now().isoformat(),
@@ -55,7 +55,7 @@ def create_sample_event():
     """Endpoint to generate a sample event for testing purposes"""
     sample_event = {
         "id": str(uuid.uuid4()),
-        "camera_id": "camera_living_room",
+        "cameraId": "camera_living_room",
         "type": "fall",
         "confidence": 0.95,
         "timestamp": datetime.now().isoformat(),
