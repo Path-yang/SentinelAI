@@ -11,7 +11,7 @@ import { useCameraStore } from "@/store/camera-store";
 import Hls from "hls.js";
 
 export default function DashboardPage() {
-  const { isConnected, streamUrl, ip } = useCameraStore();
+  const { isConnected, streamUrl, cameraDetails } = useCameraStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -173,7 +173,7 @@ export default function DashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-lg">Live Feed</CardTitle>
-                {ip && <CardDescription>Camera: {ip}</CardDescription>}
+                {cameraDetails.ip && <CardDescription>Camera: {cameraDetails.ip}</CardDescription>}
               </div>
               <div className="flex items-center gap-2">
                 {isConnected && (
