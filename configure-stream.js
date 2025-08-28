@@ -142,7 +142,7 @@ app.post('/api/test-connection', async (req, res) => {
   }
 });
 
-// Simplify FFmpeg arguments for better compatibility
+// Optimize FFmpeg settings for ultra-low latency
 app.post('/api/configure-stream', async (req, res) => {
   try {
     const { streamName, rtspUrl, username, password } = req.body;
@@ -178,18 +178,35 @@ app.post('/api/configure-stream', async (req, res) => {
       }
     }
 
-    // Use simpler FFmpeg args with direct copy
+    // Ultra-low latency FFmpeg settings
     const args = [
-      // Input options
+      // Input options for low latency
       '-rtsp_transport', 'tcp',
+      '-fflags', 'nobuffer',  // Don't buffer input
+      '-flags', 'low_delay',  // Low delay flags
       '-i', fullRtspUrl,
       
-      // Output options - direct copy without re-encoding
-      '-c', 'copy',
+      // Video codec settings for low latency
+      '-c:v', 'libx264',      // Use H.264 codec
+      '-preset', 'ultrafast', // Fastest encoding
+      '-tune', 'zerolatency', // Optimize for zero latency
+      '-profile:v', 'baseline',
+      
+      // Reduce resolution to decrease bandwidth and latency
+      '-vf', 'scale=640:360',
+      
+      // GOP settings for low latency
+      '-g', '15',             // Small GOP size
+      '-keyint_min', '15',    // Force keyframes
+      
+      // Disable audio to reduce latency
+      '-an',
+      
+      // HLS settings for low latency
       '-f', 'hls',
-      '-hls_time', '2',
-      '-hls_list_size', '3',
-      '-hls_flags', 'delete_segments',
+      '-hls_time', '0.5',     // Very short segments (500ms)
+      '-hls_list_size', '3',  // Keep only 3 segments
+      '-hls_flags', 'delete_segments+append_list+discont_start+omit_endlist',
       '-hls_segment_filename', path.join(outDir, 'segment%03d.ts'),
       path.join(outDir, 'index.m3u8')
     ];
@@ -209,7 +226,7 @@ app.post('/api/configure-stream', async (req, res) => {
     });
     
     // Wait a moment to ensure FFmpeg has started generating segments
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     // return HLS URL with server IP for cross-network access
     return res.json({ 

@@ -248,11 +248,16 @@ export default function CameraPage() {
         return;
       }
       
-      // Fix the HLS.js configuration to handle errors properly
+      // Fix the HLS.js error and console output
       if (Hls.isSupported()) {
-        // Basic HLS configuration with minimal settings
+        // Ultra low-latency HLS configuration
         const hls = new Hls({ 
           enableWorker: true,
+          lowLatencyMode: true,  // Enable low latency mode
+          liveSyncDuration: 0.2, // Very short sync duration
+          liveMaxLatencyDuration: 0.4, // Very short max latency
+          maxBufferLength: 0.5,  // Very small buffer
+          maxBufferSize: 2 * 1000 * 1000, // 2MB max buffer
           debug: false
         });
         
@@ -261,27 +266,30 @@ export default function CameraPage() {
         console.log("Loading HLS source:", urlWithTimestamp);
         
         // Set up error handling before loading source
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error("HLS error:", event, data);
+        hls.on(Hls.Events.ERROR, function(event, data) {
+          // Don't log the empty object to console
+          if (data && Object.keys(data).length > 0) {
+            console.error("HLS error:", data);
+          }
           
-          if (data.fatal) {
+          if (data && data.fatal) {
             switch(data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.log('Fatal network error encountered, trying to recover...');
                 setTimeout(() => {
                   hls.loadSource(urlWithTimestamp);
                   hls.startLoad();
-                }, 1000);
+                }, 500); // Faster recovery
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 console.log('Fatal media error encountered, trying to recover...');
                 setTimeout(() => {
                   hls.recoverMediaError();
-                }, 1000);
+                }, 500); // Faster recovery
                 break;
               default:
                 // Cannot recover from other errors
-                console.error('Fatal error, cannot recover:', data);
+                console.error('Fatal error, cannot recover');
                 setIsLoading(false);
                 toast({ 
                   title: "Playback Error", 
@@ -300,9 +308,26 @@ export default function CameraPage() {
           setLocalIsConnected(true);
           setIsConnected(true);
           
-          // Basic video setup
+          // Basic video setup for low latency
           if (video) {
             video.muted = true;
+            video.autoplay = true;
+            video.playsInline = true;
+            
+            // Play faster to reduce latency
+            video.playbackRate = 1.1;
+            
+            // Add seeking to live edge
+            const seekToLiveEdge = () => {
+              if (hls.liveSyncPosition) {
+                video.currentTime = hls.liveSyncPosition;
+              }
+            };
+            
+            // Periodically seek to live edge
+            const liveEdgeInterval = setInterval(seekToLiveEdge, 1000);
+            
+            // Play with error handling
             video.play().catch(e => {
               console.error("Autoplay failed:", e);
               // Try again with user interaction
@@ -312,6 +337,11 @@ export default function CameraPage() {
                 variant: "default",
               });
             });
+            
+            // Clean up on unmount
+            return () => {
+              clearInterval(liveEdgeInterval);
+            };
           }
           
           // Show success toast
