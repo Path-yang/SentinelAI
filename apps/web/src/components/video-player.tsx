@@ -123,6 +123,8 @@ export function VideoPlayer({
         debug: false,
         xhrSetup: function(xhr) {
           xhr.setRequestHeader('Cache-Control', 'no-cache');
+          // Allow cross-origin for HLS requests
+          xhr.withCredentials = false;
         }
       });
       
@@ -131,8 +133,16 @@ export function VideoPlayer({
       
       // Set up error handling
       hls.on(Hls.Events.ERROR, (event, data) => {
-        if (!silent && data && Object.keys(data).length > 0) { 
-          console.error('HLS player error:', JSON.stringify(data)); 
+        if (!silent && data && Object.keys(data).length > 0) {
+          console.warn('HLS player error:', data.type, data.details);
+        }
+        // Retry on manifest load error
+        if (data && data.type === Hls.ErrorTypes.NETWORK_ERROR && data.details === 'manifestLoadError') {
+          console.log('Manifest not ready, retrying...');
+          setTimeout(() => {
+            hls.startLoad();
+          }, 500);
+          return;
         }
         
         if (data && data.fatal) {
