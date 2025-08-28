@@ -70,25 +70,20 @@ app.post('/api/test-connection', async (req, res) => {
     // Build the RTSP URL with credentials if provided
     let fullRtspUrl = rtspUrl;
     if (username && password) {
-      // Extract protocol and the rest
+      // Extract protocol and host/path
       const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
       if (urlParts && urlParts.length === 3) {
-        // Fix: Use username and password directly without URL encoding
+        // Use username and password directly without URL encoding
+        // This works better with special characters in many RTSP implementations
         fullRtspUrl = `${urlParts[1]}${username}:${password}@${urlParts[2]}`;
         console.log(`Using credentials in URL: ${fullRtspUrl}`);
       }
     }
     
     // Prepare FFmpeg command for connection test - use minimal arguments
-    const args = [
-      '-loglevel', 'warning',
-      '-rtsp_transport', 'tcp',
-      '-i', fullRtspUrl,
-      '-t', '1', // Capture just 1 second
-      '-f', 'null', // Output to null device
-      '-'  // Output to stdout (which we ignore)
-    ];
-    
+    // FFmpeg args for connection test using fullRtspUrl
+    const args = ['-loglevel', 'warning', '-rtsp_transport', 'tcp', '-i', fullRtspUrl, '-t', '1', '-f', 'null', '-'];
+
     console.log(`FFmpeg test command: ffmpeg ${args.join(' ')}`);
     
     // Use a promise with timeout to limit test duration
@@ -157,56 +152,27 @@ app.post('/api/configure-stream', async (req, res) => {
       delete ffmpegProcs[streamName];
     }
     
-    // Build the RTSP URL with credentials if provided
+    // Prepare RTSP URL with credentials if provided
     let fullRtspUrl = rtspUrl;
     if (username && password) {
-      // Extract protocol and the rest
       const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
       if (urlParts && urlParts.length === 3) {
-        // Fix: Use username and password directly without URL encoding
+        // Use username and password directly without URL encoding
+        // This works better with special characters in many RTSP implementations
         fullRtspUrl = `${urlParts[1]}${username}:${password}@${urlParts[2]}`;
         console.log(`Using credentials in URL: ${fullRtspUrl}`);
       }
     }
-    
+    // Spawn FFmpeg with fullRtspUrl
     // spawn ffmpeg with basic settings - no hardware acceleration
-    console.log(`Starting FFmpeg for ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
+    console.log(`Starting FFmpeg for ${streamName} with URL: ${fullRtspUrl} (auth: ${username ? 'yes' : 'no'})`);
     
-    // Simplified FFmpeg arguments that should work on most systems
-    const args = [
-      // Global options
-      '-hide_banner',
-      '-loglevel', 'warning',
-      
-      // Input options - basic and compatible
-      '-rtsp_transport', 'tcp',
-      '-i', fullRtspUrl,
-      
-      // Video codec settings - simple and compatible
-      '-c:v', 'libx264',
-      '-preset', 'ultrafast',
-      '-tune', 'zerolatency',
-      '-profile:v', 'baseline',
-      
-      // Reduce resolution to 480p to ensure compatibility
-      '-vf', 'scale=640:480',
-      
-      // Simple GOP settings
-      '-g', '30',
-      
-      // Disable audio
-      '-an',
-      
-      // Simple HLS settings
-      '-f', 'hls',
-      '-hls_time', '2',
-      '-hls_list_size', '3',
-      '-hls_flags', 'delete_segments',
-      '-hls_segment_filename', path.join(outDir, 'segment%03d.ts'),
-      
-      // Output
-      path.join(outDir, 'index.m3u8')
-    ];
+    // Simplest FFmpeg args: copy stream directly into HLS without re-encoding, with auth header
+    const args = ['-rtsp_transport', 'tcp', '-i', fullRtspUrl];
+    args.push('-c', 'copy');
+    args.push('-f', 'hls', '-hls_time', '2', '-hls_list_size', '3', '-hls_flags', 'delete_segments');
+    args.push('-hls_segment_filename', path.join(outDir, 'segment%03d.ts'));
+    args.push(path.join(outDir, 'index.m3u8'));
     
     console.log(`FFmpeg args: ${args.join(' ')}`);
     const ff = spawn('ffmpeg', args, { stdio: 'pipe' });
