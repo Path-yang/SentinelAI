@@ -1,8 +1,7 @@
-// Fix dashboard video display issue
+// Replace VideoPlayer with direct video implementation
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { VideoPlayer } from "@/components/video-player";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { AlertsPanel } from "@/components/alerts-panel";
 import { Button } from "@/components/ui/button";
 import { useCameraStore } from "@/store/camera-store";
@@ -10,54 +9,81 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Video } from "lucide-react";
+import Hls from "hls.js";
 
 export default function DashboardPage() {
   const { streamUrl, isConnected, cameraDetails } = useCameraStore();
   const router = useRouter();
-  const [videoSource, setVideoSource] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [cameraIp, setCameraIp] = useState<string>("");
   
-  // Force refresh the video source when dashboard loads
-  const refreshVideoSource = useCallback(() => {
-    if (isConnected && streamUrl) {
-      // Add timestamp to prevent caching
-      const timestamp = Date.now();
-      setVideoSource(`${streamUrl}?_t=${timestamp}`);
+  // Direct video implementation
+  useEffect(() => {
+    // Clean up previous HLS instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    
+    // If connected and we have a stream URL
+    if (isConnected && streamUrl && videoRef.current) {
+      console.log("Dashboard: Loading video from", streamUrl);
       setCameraIp(cameraDetails.ip || "");
-      console.log("Dashboard: Setting video source to", `${streamUrl}?_t=${timestamp}`);
+      
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          debug: false,
+          xhrSetup: function(xhr) {
+            xhr.setRequestHeader('Cache-Control', 'no-cache');
+            xhr.withCredentials = false;
+          }
+        });
+        
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.warn("Dashboard HLS error:", data?.type, data?.details);
+          
+          // Auto-recover
+          if (data && data.fatal) {
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            }
+          }
+        });
+        
+        hls.loadSource(streamUrl);
+        hls.attachMedia(videoRef.current);
+        
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          videoRef.current?.play().catch(e => {
+            console.error("Autoplay failed:", e);
+          });
+        });
+        
+        hlsRef.current = hls;
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // For Safari
+        videoRef.current.src = streamUrl;
+        videoRef.current.play().catch(e => {
+          console.error("Autoplay failed:", e);
+        });
+      }
     } else {
-      setVideoSource(null);
       setCameraIp("");
     }
-  }, [isConnected, streamUrl, cameraDetails]);
-
-  // Set video source on initial load
-  useEffect(() => {
-    refreshVideoSource();
-    
-    // Set up periodic refresh
-    const refreshInterval = setInterval(refreshVideoSource, 30000);
     
     // Clean up
-    return () => clearInterval(refreshInterval);
-  }, [refreshVideoSource]);
-  
-  // Force refresh when navigating to dashboard
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refreshVideoSource();
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
       }
     };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', refreshVideoSource);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', refreshVideoSource);
-    };
-  }, [refreshVideoSource]);
+  }, [isConnected, streamUrl, cameraDetails]);
 
   const handleManageCamera = () => {
     router.push("/camera");
@@ -100,13 +126,15 @@ export default function DashboardPage() {
               {cameraIp && <p className="text-sm text-muted-foreground">Camera: {cameraIp}</p>}
             </CardHeader>
             <CardContent>
-              {videoSource ? (
-                <div key={videoSource}>
-                  <VideoPlayer 
-                    src={videoSource} 
-                    className="rounded-md overflow-hidden w-full aspect-video" 
-                    stabilizePlayback={false}
-                    silent={true}
+              {isConnected ? (
+                <div className="relative bg-black rounded-md overflow-hidden aspect-video">
+                  <video
+                    ref={videoRef}
+                    className="w-full h-full"
+                    controls
+                    playsInline
+                    muted
+                    autoPlay
                   />
                 </div>
               ) : (
