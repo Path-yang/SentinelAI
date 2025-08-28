@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Shield, Heart, AlertTriangle, PieChart, Eye, Bell, Check } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -76,10 +76,26 @@ export default function AIDetectionPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [processingModel, setProcessingModel] = useState<string | null>(null);
 
+  // Load saved models from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedModels = localStorage.getItem('activeAIModels');
+      if (savedModels) {
+        setSelectedOptions(JSON.parse(savedModels));
+      }
+    } catch (error) {
+      console.error("Failed to load saved AI models:", error);
+    }
+  }, []);
+
   // Toggle monitoring option
   const toggleOption = (optionId: string) => {
     if (selectedOptions.includes(optionId)) {
       setSelectedOptions(prev => prev.filter(id => id !== optionId));
+      
+      // Update localStorage immediately
+      const updatedOptions = selectedOptions.filter(id => id !== optionId);
+      localStorage.setItem('activeAIModels', JSON.stringify(updatedOptions));
     } else {
       setProcessingModel(optionId);
       setIsConfirmOpen(true);
@@ -89,8 +105,12 @@ export default function AIDetectionPage() {
   // Confirm selection
   const confirmSelection = () => {
     if (processingModel) {
-      setSelectedOptions(prev => [...prev, processingModel]);
+      const updatedOptions = [...selectedOptions, processingModel];
+      setSelectedOptions(updatedOptions);
       setIsConfirmOpen(false);
+      
+      // Update localStorage immediately
+      localStorage.setItem('activeAIModels', JSON.stringify(updatedOptions));
       
       // Get the model details for the toast
       let modelName = "";
@@ -115,7 +135,7 @@ export default function AIDetectionPage() {
 
   // Apply selected models and go back to dashboard
   const applyModels = () => {
-    // In a real app, you would save these selections to a global state or backend
+    // Save selections to localStorage
     localStorage.setItem('activeAIModels', JSON.stringify(selectedOptions));
     
     toast({
@@ -180,13 +200,7 @@ export default function AIDetectionPage() {
             </Badge>
           )}
           
-          <Button 
-            onClick={applyModels} 
-            disabled={selectedOptions.length === 0}
-            className="ml-2"
-          >
-            Apply & Return to Dashboard
-          </Button>
+          {/* Apply button moved to bottom of page */}
         </div>
       </div>
 
@@ -313,12 +327,15 @@ export default function AIDetectionPage() {
                 <div className="flex justify-end mt-4">
                   <Button 
                     variant="destructive" 
-                    onClick={() => setSelectedOptions([])}
+                    onClick={() => {
+                      setSelectedOptions([]);
+                      localStorage.setItem('activeAIModels', JSON.stringify([]));
+                    }}
                     className="mr-2"
                   >
                     Clear All
                   </Button>
-                  <Button onClick={applyModels}>
+                  <Button onClick={applyModels} className="bg-primary">
                     Apply & Return to Dashboard
                   </Button>
                 </div>
@@ -327,6 +344,19 @@ export default function AIDetectionPage() {
           </div>
         )}
       </div>
+      
+      {/* Fixed action button at bottom for empty state */}
+      {selectedOptions.length === 0 && (
+        <div className="fixed bottom-8 right-8">
+          <Button 
+            onClick={() => router.push('/dashboard')} 
+            className="shadow-lg"
+            size="lg"
+          >
+            Return to Dashboard
+          </Button>
+        </div>
+      )}
       
       {/* Confirmation Dialog */}
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
