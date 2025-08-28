@@ -36,7 +36,6 @@ const TEST_STREAM_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "AI Detection", href: "/dashboard/watch", icon: Activity },
-  { name: "Cameras", href: "/dashboard/cameras", icon: Camera },
   { name: "Connect Camera", href: "/camera", icon: Camera },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];

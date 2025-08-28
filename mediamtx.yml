@@ -16,7 +16,6 @@ hlsAllowOrigin: "*"
 
 paths:
   camera:
-    # Configured by backend API; default stub
-    source: rtsp://yangzhenduoroger2002%40gmail.com:Yangzhendu2002%40@192.168.1.116:554/stream1
+    source: "rtsp://yangzhenduoroger2002%40gmail.com:Yangzhendu2002%40@192.168.1.116:554/stream1"
     sourceOnDemand: yes
     sourceProtocol: tcp
