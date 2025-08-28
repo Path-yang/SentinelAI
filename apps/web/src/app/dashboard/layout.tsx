@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Live", href: "/dashboard/watch", icon: Video },
+  { name: "AI Training", href: "/dashboard/watch", icon: Activity },
   { name: "Cameras", href: "/dashboard/cameras", icon: Camera },
   { name: "Connect Camera", href: "/camera", icon: Camera },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
