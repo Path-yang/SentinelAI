@@ -56,139 +56,7 @@ app.use('/hls', (req, res, next) => {
   }
 }));
 
-// POST /api/configure-stream
-app.post('/api/configure-stream', async (req, res) => {
-  try {
-    const { streamName, rtspUrl, username, password, lowLatency, extremeLatency } = req.body;
-    
-    if (!streamName || !rtspUrl) {
-      return res.status(400).json({ error: 'Stream name and RTSP URL are required' });
-    }
-    
-    console.log(`Configuring stream ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
-    
-    // Create output directory
-    const outDir = path.join(__dirname, 'hls', streamName);
-    await mkdirp(outDir);
-    
-    // Kill any existing FFmpeg process for this stream
-    if (ffmpegProcs[streamName]) {
-      console.log(`Killing existing FFmpeg process for ${streamName}`);
-      ffmpegProcs[streamName].kill('SIGKILL');
-      delete ffmpegProcs[streamName];
-    }
-    
-    // Build the RTSP URL with credentials if provided
-    let fullRtspUrl = rtspUrl;
-    if (username && password) {
-      // Extract protocol and the rest
-      const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
-      if (urlParts && urlParts.length === 3) {
-        fullRtspUrl = `${urlParts[1]}${encodeURIComponent(username)}:${encodeURIComponent(password)}@${urlParts[2]}`;
-      }
-    }
-    
-    // spawn ffmpeg with extreme low-latency settings
-    console.log(`Starting FFmpeg for ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
-    
-    // Determine if we should use hardware acceleration
-    let hwaccel = [];
-    try {
-      // Check for macOS (VideoToolbox)
-      if (process.platform === 'darwin') {
-        hwaccel = ['-hwaccel', 'videotoolbox'];
-      }
-      // Check for NVIDIA GPU (Linux/Windows)
-      else if (fs.existsSync('/dev/nvidia0') || process.env.CUDA_VISIBLE_DEVICES) {
-        hwaccel = ['-hwaccel', 'cuda'];
-      }
-    } catch (err) {
-      console.log('Hardware acceleration not available, using software encoding');
-    }
-    
-    // Fix the FFmpeg arguments to use only supported options
-    const args = [
-      // Global options
-      '-hide_banner',
-      '-loglevel', 'warning',
-      
-      // Input buffer options - extreme minimal buffering
-      '-fflags', '+discardcorrupt+nobuffer+fastseek',
-      '-flags', 'low_delay',
-      
-      // Hardware acceleration if available
-      ...hwaccel,
-      
-      // RTSP specific options
-      '-rtsp_transport', 'tcp',
-      
-      // Input source with minimal buffering
-      '-i', fullRtspUrl,
-      
-      // Video codec settings - optimized for latency over quality
-      '-c:v', 'libx264',
-      '-preset', 'ultrafast',
-      '-tune', 'zerolatency',
-      '-profile:v', 'baseline',
-      '-level', '3.0',
-      
-      // Reduce frame size for faster processing
-      '-vf', 'scale=iw/1.5:ih/1.5',
-      
-      // GOP settings - extremely small GOP
-      '-g', '10',
-      '-keyint_min', '5',
-      
-      // Bitrate control - lower quality for speed
-      '-b:v', '500k',
-      '-maxrate', '600k',
-      '-bufsize', '300k',
-      
-      // Disable audio completely
-      '-an',
-      
-      // Output format settings - extreme low latency HLS
-      '-f', 'hls',
-      '-hls_time', '0.2', // Ultra short segments (200ms)
-      '-hls_list_size', '2', // Keep only 2 segments in playlist
-      '-hls_flags', 'delete_segments+append_list+discont_start+omit_endlist',
-      '-hls_segment_type', 'mpegts',
-      '-hls_segment_filename', path.join(outDir, 'segment%03d.ts'),
-      
-      // Output
-      path.join(outDir, 'index.m3u8')
-    ];
-    
-    console.log(`FFmpeg args: ${args.join(' ')}`);
-    const ff = spawn('ffmpeg', args, { stdio: 'pipe' });
-    
-    // Capture and log stderr for debugging
-    ff.stderr.on('data', (data) => {
-      console.log(`FFmpeg ${streamName} stderr: ${data}`);
-    });
-    
-    ffmpegProcs[streamName] = ff;
-    ff.on('exit', (code, signal) => {
-      console.log(`FFmpeg ${streamName} exited code=${code} sig=${signal}`);
-      delete ffmpegProcs[streamName];
-    });
-    
-    // Wait a moment to ensure FFmpeg has started generating segments
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // return HLS URL with server IP for cross-network access
-    return res.json({ 
-      success: true, 
-      hlsUrl: `http://${SERVER_IP}:${PORT}/hls/${streamName}/index.m3u8`,
-      serverIp: SERVER_IP
-    });
-  } catch (err) {
-    console.error('Error configuring stream:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Fix the test-connection endpoint
+// Fix URL encoding for special characters in username/password
 app.post('/api/test-connection', async (req, res) => {
   console.log('Received test-connection request:', req.body);
   try {
@@ -205,7 +73,9 @@ app.post('/api/test-connection', async (req, res) => {
       // Extract protocol and the rest
       const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
       if (urlParts && urlParts.length === 3) {
-        fullRtspUrl = `${urlParts[1]}${encodeURIComponent(username)}:${encodeURIComponent(password)}@${urlParts[2]}`;
+        // Fix: Use username and password directly without URL encoding
+        fullRtspUrl = `${urlParts[1]}${username}:${password}@${urlParts[2]}`;
+        console.log(`Using credentials in URL: ${fullRtspUrl}`);
       }
     }
     
@@ -262,6 +132,108 @@ app.post('/api/test-connection', async (req, res) => {
       error: 'Internal server error', 
       success: false 
     });
+  }
+});
+
+// Fix URL encoding for special characters in username/password
+app.post('/api/configure-stream', async (req, res) => {
+  try {
+    const { streamName, rtspUrl, username, password, lowLatency, extremeLatency } = req.body;
+    
+    if (!streamName || !rtspUrl) {
+      return res.status(400).json({ error: 'Stream name and RTSP URL are required' });
+    }
+    
+    console.log(`Configuring stream ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
+    
+    // Create output directory
+    const outDir = path.join(__dirname, 'hls', streamName);
+    await mkdirp(outDir);
+    
+    // Kill any existing FFmpeg process for this stream
+    if (ffmpegProcs[streamName]) {
+      console.log(`Killing existing FFmpeg process for ${streamName}`);
+      ffmpegProcs[streamName].kill('SIGKILL');
+      delete ffmpegProcs[streamName];
+    }
+    
+    // Build the RTSP URL with credentials if provided
+    let fullRtspUrl = rtspUrl;
+    if (username && password) {
+      // Extract protocol and the rest
+      const urlParts = rtspUrl.match(/^(rtsp:\/\/)(.+)$/);
+      if (urlParts && urlParts.length === 3) {
+        // Fix: Use username and password directly without URL encoding
+        fullRtspUrl = `${urlParts[1]}${username}:${password}@${urlParts[2]}`;
+        console.log(`Using credentials in URL: ${fullRtspUrl}`);
+      }
+    }
+    
+    // spawn ffmpeg with basic settings - no hardware acceleration
+    console.log(`Starting FFmpeg for ${streamName} with URL: ${rtspUrl} (auth: ${username ? 'yes' : 'no'})`);
+    
+    // Simplified FFmpeg arguments that should work on most systems
+    const args = [
+      // Global options
+      '-hide_banner',
+      '-loglevel', 'warning',
+      
+      // Input options - basic and compatible
+      '-rtsp_transport', 'tcp',
+      '-i', fullRtspUrl,
+      
+      // Video codec settings - simple and compatible
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-tune', 'zerolatency',
+      '-profile:v', 'baseline',
+      
+      // Reduce resolution to 480p to ensure compatibility
+      '-vf', 'scale=640:480',
+      
+      // Simple GOP settings
+      '-g', '30',
+      
+      // Disable audio
+      '-an',
+      
+      // Simple HLS settings
+      '-f', 'hls',
+      '-hls_time', '2',
+      '-hls_list_size', '3',
+      '-hls_flags', 'delete_segments',
+      '-hls_segment_filename', path.join(outDir, 'segment%03d.ts'),
+      
+      // Output
+      path.join(outDir, 'index.m3u8')
+    ];
+    
+    console.log(`FFmpeg args: ${args.join(' ')}`);
+    const ff = spawn('ffmpeg', args, { stdio: 'pipe' });
+    
+    // Capture and log stderr for debugging
+    ff.stderr.on('data', (data) => {
+      console.log(`FFmpeg ${streamName} stderr: ${data}`);
+    });
+    
+    ffmpegProcs[streamName] = ff;
+    ff.on('exit', (code, signal) => {
+      console.log(`FFmpeg ${streamName} exited code=${code} sig=${signal}`);
+      delete ffmpegProcs[streamName];
+    });
+    
+    // Wait a moment to ensure FFmpeg has started generating segments
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // return HLS URL with server IP for cross-network access
+    return res.json({ 
+      success: true, 
+      hlsUrl: `http://${SERVER_IP}:${PORT}/hls/${streamName}/index.m3u8`,
+      serverIp: SERVER_IP
+    });
+  } catch (err) {
+    console.error('Error configuring stream:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
