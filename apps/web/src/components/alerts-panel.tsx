@@ -99,7 +99,7 @@ export function AlertsPanel() {
                         {alert.cameraId}
                       </Badge>
                       <p className="text-xs text-muted-foreground">
-                        {formatTimeAgo(alert.timestamp)}
+                        {formatTimeAgo(new Date(alert.timestamp).toISOString())}
                       </p>
                     </div>
                   </div>
