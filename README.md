@@ -1,5 +1,9 @@
 # SentinelAI - Cloud Bridge Architecture
 
+<div align="center">
+  <img src="apps/web/public/images/logo.png" alt="SentinelAI Logo" width="300" />
+</div>
+
 Transform ordinary cameras into smart anomaly detectors using AI technology with a cloud-based streaming architecture.
 
 ## 🚀 **WORKING STATUS: Cloud Bridge MVP Complete!**

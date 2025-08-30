@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { X, Home, Camera, Activity, Settings } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Home, Camera, Activity, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCameraStore } from "@/store/camera-store";
+import Image from "next/image";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -21,33 +19,26 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { isConnected } = useCameraStore();
 
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r lg:relative lg:z-0",
-          "transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-in-out",
-          sidebarOpen && "translate-x-0"
-        )}
-      >
+      <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r lg:relative lg:z-0">
         {/* Sidebar header */}
         <div className="flex h-16 items-center justify-between px-4 border-b">
           <Link
             href="/"
             className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
           >
+            <Image
+              src="/images/logo-only.png"
+              alt="SentinelAI Logo"
+              width={32}
+              height={32}
+              className="w-8 h-8"
+            />
             <span>SentinelAI</span>
           </Link>
-          <button
-            className="lg:hidden p-1 rounded-md hover:bg-accent"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         {/* Sidebar navigation */}
@@ -76,9 +67,9 @@ export default function DashboardLayout({
           <div className="p-4 border-t">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
-                <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
                 <span className="text-sm text-muted-foreground">
-                  {isConnected ? 'Connected' : 'Disconnected'}
+                  System Online
                 </span>
               </div>
             </div>
@@ -87,8 +78,10 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 overflow-auto">
-        {children}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );
