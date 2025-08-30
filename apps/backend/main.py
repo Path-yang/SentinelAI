@@ -5,7 +5,6 @@ import secrets, time
 
 app = FastAPI()
 
-# Allow Vercel + localhost; widen for now (tighten later)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "https://*.vercel.app", "https://*"],
@@ -29,7 +28,6 @@ async def post_event(ev: Event):
     ev.timestamp = ev.timestamp or int(time.time())
     data = ev.dict()
     EVENTS.append(data)
-    # broadcast
     for ws in list(CLIENTS):
         try:
             await ws.send_json(data)
@@ -47,17 +45,16 @@ async def ws_alerts(ws: WebSocket):
     CLIENTS.add(ws)
     try:
         while True:
-            await ws.receive_text()  # ignore, keep alive
+            await ws.receive_text()  # keepalive
     except WebSocketDisconnect:
         CLIENTS.discard(ws)
 
-# New: session for Bridge (returns RTSP publish + HLS URLs)
 class BridgeReq(BaseModel):
     camera_label: str | None = None
 
 @app.post("/bridge/session")
 async def bridge_session(_: BridgeReq):
     cam_id = "cam-" + secrets.token_urlsafe(6)
-    publish_url = f"rtsp://stream.yourdomain.com:8554/{cam_id}"
-    hls_url = f"https://stream.yourdomain.com/hls/{cam_id}/index.m3u8"
+    publish_url = f"rtsp://STREAM_DOMAIN:8554/{cam_id}"
+    hls_url     = f"https://STREAM_DOMAIN/hls/{cam_id}/index.m3u8"
     return {"camera_id": cam_id, "publish_url": publish_url, "hls_url": hls_url} 

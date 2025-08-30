@@ -1,2 +1,1 @@
-# (optional for future CLI niceties)
-# typer 
+# reserved for future CLI niceties (e.g., typer) 

@@ -1,0 +1,19 @@
+STREAM_DOMAIN {
+  encode gzip
+
+  handle_path /hls/* {
+    root * /hls
+    header Access-Control-Allow-Origin "*"
+    header Access-Control-Allow-Headers "origin,range,accept,referer,accept-encoding"
+    try_files {path} {path}.m3u8
+    file_server
+  }
+
+  handle_path /api/* {
+    reverse_proxy sentinel-backend:10000
+  }
+
+  handle_path /ws/* {
+    reverse_proxy sentinel-backend:10000
+  }
+} 

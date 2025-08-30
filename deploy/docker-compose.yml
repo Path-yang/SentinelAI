@@ -1,0 +1,29 @@
+version: "3.8"
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: mediamtx
+    volumes:
+      - ../configs/mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ./hls:/hls
+    ports:
+      - "8554:8554"   # RTSP ingest from Bridge
+  backend:
+    image: python:3.11-slim
+    container_name: sentinel-backend
+    working_dir: /app
+    command: bash -lc "pip install fastapi uvicorn[standard] pydantic && uvicorn main:app --host 0.0.0.0 --port 10000"
+    volumes:
+      - ../apps/backend:/app
+    expose:
+      - "10000"
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    depends_on: [backend, mediamtx]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./hls:/hls:ro 

@@ -2,6 +2,4 @@ hlsEnable: yes
 hlsDirectory: /hls
 paths:
   ~^cam-:
-    source: publisher   # accept RTSP PUBLISH from Bridge
-
-# Put Nginx in front of /hls with HTTPS + CORS (see docs). 
+    source: publisher 
