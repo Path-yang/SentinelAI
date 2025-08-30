@@ -1,0 +1,9 @@
+{
+  "name": "sentinelai",
+  "version": "0.1.0",
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "dev:backend": "bash apps/backend/run.sh",
+    "dev:bridge": "python apps/bridge/bridge.py --help || true"
+  }
+} 
