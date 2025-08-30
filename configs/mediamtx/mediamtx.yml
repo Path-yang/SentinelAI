@@ -1,5 +1,61 @@
+# SentinelAI MediaMTX Configuration
+# Production-ready streaming server configuration
+
+# Server settings
+protocols: [tcp, udp]
+rtspAddress: ":8554"
+rtmpAddress: ":1935"
+hlsAddress: ":8880"
+webrtcAddress: ":8889"
+
+# HLS configuration
 hlsEnable: yes
 hlsDirectory: /hls
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1
+hlsSegmentMaxSize: 50MB
+hlsPartDuration: 0.2
+hlsSegmentDuration: 1
+
+# Logging
+logLevel: info
+logDestinations: [stdout]
+
+# Paths configuration
 paths:
+  # Camera streams (accept RTSP PUBLISH from Bridge)
   ~^cam-:
-    source: publisher 
+    source: publisher
+    sourceOnDemand: yes
+    sourceOnDemandCloseAfter: 10s
+    
+    # HLS settings for this path
+    hlsEnable: yes
+    hlsSegmentCount: 7
+    hlsSegmentDuration: 1
+    
+    # Recording (optional)
+    record: no
+    
+    # Authentication (can be enabled later)
+    # readUser: admin
+    # readPass: admin123
+    # publishUser: admin
+    # publishPass: admin123
+
+  # Health check endpoint
+  health:
+    source: publisher
+    sourceOnDemand: yes
+    sourceOnDemandCloseAfter: 5s
+    hlsEnable: no
+    record: no
+
+# API configuration
+api: yes
+apiAddress: ":9997"
+
+# Metrics
+metrics: yes
+metricsAddress: ":9998" 

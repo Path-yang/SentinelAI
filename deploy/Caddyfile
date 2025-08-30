@@ -1,19 +1,84 @@
 STREAM_DOMAIN {
-  encode gzip
+  # Enable compression
+  encode gzip zstd
+  
+  # Security headers
+  header {
+    # Security
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    X-XSS-Protection "1; mode=block"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Performance
+    Cache-Control "public, max-age=31536000"
+  }
 
+  # HLS streaming endpoint
   handle_path /hls/* {
     root * /hls
+    
+    # CORS for HLS
     header Access-Control-Allow-Origin "*"
-    header Access-Control-Allow-Headers "origin,range,accept,referer,accept-encoding"
+    header Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+    header Access-Control-Allow-Headers "origin,range,accept,referer,accept-encoding,cache-control"
+    header Access-Control-Max-Age "86400"
+    
+    # Handle preflight requests
+    @options method OPTIONS
+    respond @options 204
+    
+    # File serving with proper MIME types
     try_files {path} {path}.m3u8
     file_server
+    
+    # Cache HLS segments aggressively
+    @hls path *.ts
+    header @hls Cache-Control "public, max-age=3600"
+    
+    # Cache M3U8 playlists less aggressively
+    @m3u8 path *.m3u8
+    header @m3u8 Cache-Control "public, max-age=10"
   }
 
+  # API endpoints
   handle_path /api/* {
-    reverse_proxy sentinel-backend:10000
+    reverse_proxy sentinel-backend:10000 {
+      # Health checks
+      health_uri /health
+      health_interval 30s
+      health_timeout 10s
+      
+      # Load balancing (if multiple backends)
+      lb_policy round_robin
+      
+      # Timeouts
+      timeout 30s
+    }
+    
+    # API-specific headers
+    header Cache-Control "no-cache, no-store, must-revalidate"
   }
 
+  # WebSocket endpoints
   handle_path /ws/* {
-    reverse_proxy sentinel-backend:10000
+    reverse_proxy sentinel-backend:10000 {
+      # WebSocket specific settings
+      timeout 60s
+      
+      # Handle WebSocket upgrade
+      header Connection "upgrade"
+      header Upgrade "websocket"
+    }
+  }
+
+  # Health check endpoint
+  handle /health {
+    respond "OK" 200
+  }
+
+  # Default error handling
+  handle_errors {
+    respond "{err.status_code} {err.status_text}" {err.status_code}
   }
 } 

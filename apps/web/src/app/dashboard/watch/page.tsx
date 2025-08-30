@@ -3,216 +3,173 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Search, Zap, ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { Label } from "@/components/ui/label";
 
-interface DetectionModel {
+interface AIModel {
   id: string;
   name: string;
   category: string;
   description: string;
 }
 
-const detectionCategories = [
-  {
-    id: "health",
-    name: "Health & Safety",
-    icon: "🏥",
-    options: [
-      { id: "falls", name: "Fall Detection", description: "Detect when someone falls or collapses" },
-      { id: "immobility", name: "Extended Immobility", description: "Alert on prolonged lack of movement" },
-      { id: "seizures", name: "Seizure Detection", description: "Identify seizure-like movements" },
-    ]
-  },
-  {
-    id: "security",
-    name: "Security",
-    icon: "🔒",
-    options: [
-      { id: "intruders", name: "Intruder Detection", description: "Detect unauthorized persons" },
-      { id: "objects", name: "Abandoned Objects", description: "Identify suspicious left items" },
-      { id: "tampering", name: "Camera Tampering", description: "Detect camera obstruction" },
-    ]
-  },
-  {
-    id: "emergencies",
-    name: "Emergencies",
-    icon: "🚨",
-    options: [
-      { id: "fire", name: "Fire Detection", description: "Identify smoke or flames" },
-      { id: "accidents", name: "Accidents", description: "Detect vehicle or personal accidents" },
-      { id: "distress", name: "Distress Signs", description: "Recognize help signals" },
-    ]
-  },
-  {
-    id: "analytics",
-    name: "Analytics",
-    icon: "📊",
-    options: [
-      { id: "occupancy", name: "Occupancy Counting", description: "Track people in areas" },
-      { id: "dwell", name: "Dwell Time", description: "Monitor time spent in locations" },
-      { id: "traffic", name: "Traffic Patterns", description: "Analyze movement flows" },
-    ]
-  }
+const aiModels: AIModel[] = [
+  // Health & Safety
+  { id: "falls", name: "Fall Detection", category: "Health & Safety", description: "Detect when someone falls" },
+  { id: "immobility", name: "Extended Immobility", category: "Health & Safety", description: "Detect prolonged lack of movement" },
+  { id: "seizures", name: "Seizure Detection", category: "Health & Safety", description: "Detect seizure-like movements" },
+  
+  // Security
+  { id: "intruders", name: "Intruder Detection", category: "Security", description: "Detect unauthorized persons" },
+  { id: "objects", name: "Abandoned Objects", category: "Security", description: "Detect suspicious objects" },
+  { id: "tampering", name: "Camera Tampering", category: "Security", description: "Detect camera obstruction" },
+  
+  // Emergencies
+  { id: "fire", name: "Fire Detection", category: "Emergencies", description: "Detect fire or smoke" },
+  { id: "accidents", name: "Accidents", category: "Emergencies", description: "Detect accident scenes" },
+  { id: "distress", name: "Distress Signs", category: "Emergencies", description: "Detect signs of distress" },
+  
+  // Analytics
+  { id: "occupancy", name: "Occupancy Counting", category: "Analytics", description: "Count people in area" },
+  { id: "dwell", name: "Dwell Time", category: "Analytics", description: "Track time spent in area" },
+  { id: "traffic", name: "Traffic Patterns", category: "Analytics", description: "Analyze movement patterns" },
 ];
 
 export default function AIDetectionPage() {
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [activeModels, setActiveModels] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  // Load saved models on component mount
+  // Load active models from localStorage
   useEffect(() => {
     try {
-      const savedModels = localStorage.getItem('activeAIModels');
-      if (savedModels) {
-        setSelectedModels(JSON.parse(savedModels));
+      const saved = localStorage.getItem("activeAIModels");
+      if (saved) {
+        setActiveModels(JSON.parse(saved));
       }
     } catch (error) {
       console.error("Failed to load active AI models:", error);
     }
   }, []);
 
-  // Save models to localStorage whenever selection changes
-  useEffect(() => {
-    localStorage.setItem('activeAIModels', JSON.stringify(selectedModels));
-  }, [selectedModels]);
-
-  const handleModelToggle = (modelId: string) => {
-    setSelectedModels(prev => 
-      prev.includes(modelId) 
-        ? prev.filter(id => id !== modelId)
-        : [...prev, modelId]
-    );
-  };
-
-  const handleApplyModels = () => {
-    // Models are automatically saved to localStorage
-    // You can add additional logic here if needed
-  };
-
-  const filteredCategories = detectionCategories.filter(category => {
-    if (selectedCategory && category.id !== selectedCategory) return false;
-    
-    if (searchTerm) {
-      const hasMatchingOption = category.options.some(option =>
-        option.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        option.description.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      return hasMatchingOption;
+  // Save active models to localStorage
+  const saveActiveModels = (models: string[]) => {
+    try {
+      localStorage.setItem("activeAIModels", JSON.stringify(models));
+    } catch (error) {
+      console.error("Failed to save active AI models:", error);
     }
+  };
+
+  const toggleModel = (modelId: string) => {
+    const newActiveModels = activeModels.includes(modelId)
+      ? activeModels.filter(id => id !== modelId)
+      : [...activeModels, modelId];
     
-    return true;
+    setActiveModels(newActiveModels);
+    saveActiveModels(newActiveModels);
+  };
+
+  const getCategories = () => {
+    const categories = ["all", ...Array.from(new Set(aiModels.map(m => m.category)))];
+    return categories;
+  };
+
+  const filteredModels = aiModels.filter(model => {
+    const matchesSearch = model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         model.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === "all" || model.category === selectedCategory;
+    return matchesSearch && matchesCategory;
   });
 
-  const getCategoryName = (categoryId: string) => {
-    const category = detectionCategories.find(c => c.id === categoryId);
-    return category?.name || categoryId;
-  };
-
   return (
-    <div className="container mx-auto py-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+    <div className="container mx-auto py-8">
+      <h1 className="text-2xl font-bold mb-6">AI Detection</h1>
+      
+      {/* Search and Filter */}
+      <div className="mb-6 space-y-4">
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <Label htmlFor="search">Search Models</Label>
+            <Input
+              id="search"
+              placeholder="Search AI models..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
           <div>
-            <h1 className="text-3xl font-bold">AI Detection</h1>
-            <p className="text-muted-foreground">
-              Select AI models to monitor your camera feeds
-            </p>
+            <Label htmlFor="category">Category</Label>
+            <select
+              id="category"
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {getCategories().map(category => (
+                <option key={category} value={category}>
+                  {category === "all" ? "All Categories" : category}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-            <Zap className="h-3 w-3 mr-1" />
-            {selectedModels.length} Active
-          </Badge>
-        </div>
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder="Search detection models..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant={selectedCategory === null ? "default" : "outline"}
-            onClick={() => setSelectedCategory(null)}
-          >
-            All
-          </Button>
-          {detectionCategories.map(category => (
-            <Button
-              key={category.id}
-              variant={selectedCategory === category.id ? "default" : "outline"}
-              onClick={() => setSelectedCategory(category.id)}
-            >
-              {category.icon} {category.name}
-            </Button>
-          ))}
-        </div>
+      {/* Models Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {filteredModels.map((model) => {
+          const isActive = activeModels.includes(model.id);
+          return (
+            <Card key={model.id} className={isActive ? "ring-2 ring-primary" : ""}>
+              <CardHeader>
+                <CardTitle className="text-lg">{model.name}</CardTitle>
+                <p className="text-sm text-muted-foreground">{model.category}</p>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm mb-4">{model.description}</p>
+                <Button
+                  variant={isActive ? "default" : "outline"}
+                  onClick={() => toggleModel(model.id)}
+                  className="w-full"
+                >
+                  {isActive ? "Active" : "Activate"}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Detection Models */}
-      <div className="grid gap-6">
-        {filteredCategories.map(category => (
-          <Card key={category.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <span className="text-2xl">{category.icon}</span>
-                <span>{category.name}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {category.options.map(option => (
-                  <div
-                    key={option.id}
-                    className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                  >
-                    <Switch
-                      id={option.id}
-                      checked={selectedModels.includes(option.id)}
-                      onCheckedChange={() => handleModelToggle(option.id)}
-                    />
-                    <div className="flex-1 space-y-1">
-                      <Label htmlFor={option.id} className="font-medium cursor-pointer">
-                        {option.name}
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        {option.description}
-                      </p>
+      {/* Active Models Summary */}
+      {activeModels.length > 0 && (
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Active Models ({activeModels.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {activeModels.map(modelId => {
+                const model = aiModels.find(m => m.id === modelId);
+                return model ? (
+                  <div key={modelId} className="flex items-center justify-between p-3 border rounded-md">
+                    <div>
+                      <p className="font-medium">{model.name}</p>
+                      <p className="text-sm text-muted-foreground">{model.category}</p>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleModel(modelId)}
+                    >
+                      Deactivate
+                    </Button>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Apply Button */}
-      {selectedModels.length > 0 && (
-        <div className="flex justify-center">
-          <Button onClick={handleApplyModels} className="px-8">
-            Apply & Return to Dashboard
-          </Button>
-        </div>
+                ) : null;
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

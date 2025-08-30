@@ -2,7 +2,15 @@
 
 import { create } from 'zustand';
 
-interface CameraDetails {
+export interface CameraSession {
+  camera_id: string;
+  publish_url: string;
+  hls_url: string;
+  created_at?: number;
+  label?: string;
+}
+
+export interface CameraDetails {
   ip: string;
   port: string;
   path: string;
@@ -11,47 +19,96 @@ interface CameraDetails {
   streamName: string;
 }
 
-interface CameraState {
+interface CameraStore {
+  // Cloud Bridge session
+  currentSession: CameraSession | null;
+  isSessionActive: boolean;
+  
+  // Legacy camera details (for future use)
+  cameraDetails: CameraDetails;
+  
+  // Stream state
   streamUrl: string | null;
   isConnected: boolean;
-  cameraDetails: CameraDetails;
-  setCameraDetails: (details: Partial<CameraDetails>) => void;
+  isStreaming: boolean;
+  
+  // Actions
+  setSession: (session: CameraSession | null) => void;
+  clearSession: () => void;
   setStreamUrl: (url: string | null) => void;
   setIsConnected: (connected: boolean) => void;
+  setIsStreaming: (streaming: boolean) => void;
+  setCameraDetails: (details: CameraDetails) => void;
   disconnect: () => void;
-  resetStore: () => void;
+  
+  // Computed values
+  getRtspUrl: () => string;
+  getHlsUrl: () => string | null;
 }
 
-const defaultCameraDetails: CameraDetails = {
-  ip: "",
-  port: "554",
-  path: "stream1",
-  username: "",
-  password: "",
-  streamName: "My Camera",
-};
-
-export const useCameraStore = create<CameraState>((set, get) => ({
+export const useCameraStore = create<CameraStore>((set, get) => ({
+  // Cloud Bridge session
+  currentSession: null,
+  isSessionActive: false,
+  
+  // Legacy camera details
+  cameraDetails: {
+    ip: '',
+    port: '554',
+    path: '',
+    username: '',
+    password: '',
+    streamName: 'mystream'
+  },
+  
+  // Stream state
   streamUrl: null,
   isConnected: false,
-  cameraDetails: defaultCameraDetails,
+  isStreaming: false,
   
-  setCameraDetails: (details) => set((state) => ({
-    cameraDetails: { ...state.cameraDetails, ...details }
-  })),
+  // Actions
+  setSession: (session) => set({ 
+    currentSession: session, 
+    isSessionActive: !!session,
+    isConnected: !!session,
+    streamUrl: session?.hls_url || null
+  }),
+  
+  clearSession: () => set({ 
+    currentSession: null, 
+    isSessionActive: false,
+    isConnected: false,
+    streamUrl: null,
+    isStreaming: false
+  }),
   
   setStreamUrl: (url) => set({ streamUrl: url }),
-  
   setIsConnected: (connected) => set({ isConnected: connected }),
+  setIsStreaming: (streaming) => set({ isStreaming: streaming }),
+  setCameraDetails: (details) => set({ cameraDetails: details }),
   
-  disconnect: () => set({
-    streamUrl: null,
-    isConnected: false,
+  disconnect: () => set({ 
+    streamUrl: null, 
+    isConnected: false, 
+    isStreaming: false,
+    currentSession: null,
+    isSessionActive: false
   }),
   
-  resetStore: () => set({
-    streamUrl: null,
-    isConnected: false,
-    cameraDetails: defaultCameraDetails,
-  }),
+  // Computed values
+  getRtspUrl: () => {
+    const { cameraDetails } = get();
+    if (!cameraDetails.ip) return '';
+    
+    const auth = cameraDetails.username && cameraDetails.password 
+      ? `${cameraDetails.username}:${cameraDetails.password}@`
+      : '';
+    
+    return `rtsp://${auth}${cameraDetails.ip}:${cameraDetails.port}${cameraDetails.path}`;
+  },
+  
+  getHlsUrl: () => {
+    const { currentSession, streamUrl } = get();
+    return currentSession?.hls_url || streamUrl;
+  }
 })); 
