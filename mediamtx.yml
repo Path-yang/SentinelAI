@@ -1,0 +1,5 @@
+hlsEnable: yes
+hlsDirectory: /hls
+paths:
+  ~^cam-:
+    source: publisher 
