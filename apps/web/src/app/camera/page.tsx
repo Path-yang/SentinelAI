@@ -10,8 +10,11 @@ export default function ConnectCamera() {
   const [cmd, setCmd] = useState("");
   const vidRef = useRef<HTMLVideoElement>(null);
 
+  // Fallback to localhost if environment variable not set
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:10000";
+
   async function createSession() {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/bridge/session`, {
+    const res = await fetch(`${apiBase}/bridge/session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ camera_label: "My Camera" })
