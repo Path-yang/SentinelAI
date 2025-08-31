@@ -105,13 +105,13 @@ export default function ConnectCamera() {
       <nav className="flex gap-4 mb-6">
         <Link 
           href="/dashboard"
-          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
         >
-          ← Dashboard
+          Dashboard
         </Link>
         <Link 
           href="/camera"
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
         >
           Connect Camera
         </Link>
@@ -119,102 +119,98 @@ export default function ConnectCamera() {
 
       <h1 className="text-2xl font-bold mb-6">Connect Camera via Bridge</h1>
       
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-800 text-sm">{error}</p>
-        </div>
-      )}
-      
-      {!session ? (
-        <div className="space-y-4">
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Left Column - Camera Setup */}
+        <div className="space-y-6">
+          {/* RTSP Input */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              RTSP URL
+            </label>
+            <input
+              type="text"
+              value={rtsp}
+              onChange={(e) => setRtsp(e.target.value)}
+              placeholder="rtsp://username:password@ip:port/path"
+              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-sm text-gray-600 mt-1">
+              Example: rtsp://admin:password@192.168.1.100:554/stream1
+            </p>
+          </div>
+
+          {/* Create Session Button */}
           <button
             onClick={createSession}
             disabled={loading}
-            className={`px-4 py-2 rounded font-medium transition-colors ${
-              loading 
-                ? "bg-gray-400 cursor-not-allowed" 
-                : "bg-blue-600 hover:bg-blue-700 text-white"
-            }`}
+            className="w-full bg-blue-500 text-white py-3 px-4 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Creating..." : "Create Cloud Stream"}
+            {loading ? "Creating Session..." : "Create Streaming Session"}
           </button>
-          
-          {loading && (
-            <p className="text-sm text-gray-600">Generating unique camera session...</p>
+
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
           )}
-        </div>
-      ) : (
-        <div className="space-y-6">
-          <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-            <h3 className="font-medium text-green-800 mb-2">Session Created Successfully!</h3>
-            <p className="text-sm text-green-700">Camera ID: <code className="bg-green-100 px-2 py-1 rounded">{session.camera_id}</code></p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              RTSP URL from your camera (LAN):
-            </label>
-            <input
-              className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="rtsp://user:pass@192.168.x.x:554/Streaming/Channels/101"
-              value={rtsp}
-              onChange={(e) => setRtsp(e.target.value)}
-            />
-            <p className="text-xs text-gray-500 mt-1">Enter the RTSP URL from your camera to get the bridge command</p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="p-3 bg-gray-50 rounded-md">
-              <p className="text-sm font-medium text-gray-700 mb-1">Publish URL:</p>
-              <code className="text-xs break-all bg-white p-2 rounded border block">
-                {session.publish_url}
-              </code>
-            </div>
-            
-            <div className="p-3 bg-gray-50 rounded-md">
-              <p className="text-sm font-medium text-gray-700 mb-1">HLS URL:</p>
-              <code className="text-xs break-all bg-white p-2 rounded border block">
-                {session.hls_url}
-              </code>
-            </div>
-          </div>
-          
-          <div>
-            <p className="text-sm font-medium mb-2">Run this command on your LAN device:</p>
-            <div className="relative">
-              <code className="block bg-gray-100 p-3 rounded text-sm break-all">
-                {cmd}
-              </code>
-              <button
-                onClick={() => copyToClipboard(cmd)}
-                className="absolute top-2 right-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          
-          {!session.hls_url.includes("STREAM_DOMAIN") && (
+
+          {/* Bridge Command */}
+          {cmd && (
             <div>
-              <p className="text-sm font-medium mb-2">Live Stream Preview:</p>
-              <video
-                ref={vidRef}
-                controls
-                className="w-full max-w-2xl border rounded bg-gray-100"
-                poster="/images/video-placeholder.png"
-              />
-            </div>
-          )}
-          
-          {session.hls_url.includes("STREAM_DOMAIN") && (
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-sm text-yellow-800">
-                <strong>Note:</strong> This is a development session. For production, replace STREAM_DOMAIN with your actual domain.
+              <label className="block text-sm font-medium mb-2">
+                Bridge Command
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={cmd}
+                  readOnly
+                  className="flex-1 p-3 bg-gray-100 border border-gray-300 rounded-md font-mono text-sm"
+                />
+                <button
+                  onClick={() => copyToClipboard(cmd)}
+                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                >
+                  Copy
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                Run this command on your local machine to connect your camera
               </p>
             </div>
           )}
         </div>
-      )}
+
+        {/* Right Column - Video Preview */}
+        <div className="space-y-6">
+          <h3 className="text-lg font-semibold">Stream Preview</h3>
+          
+          {session ? (
+            <div className="space-y-4">
+              <video
+                ref={vidRef}
+                controls
+                className="w-full rounded-lg border"
+                style={{ maxHeight: '400px' }}
+              />
+              
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <h4 className="font-semibold mb-2">Session Info</h4>
+                <div className="space-y-2 text-sm">
+                  <div><strong>Camera ID:</strong> {session.camera_id}</div>
+                  <div><strong>Publish URL:</strong> <code className="bg-white px-2 py-1 rounded">{session.publish_url}</code></div>
+                  <div><strong>HLS URL:</strong> <code className="bg-white px-2 py-1 rounded">{session.hls_url}</code></div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-100 p-8 rounded-lg text-center text-gray-500">
+              <p>Create a session to see the stream preview</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 } 

@@ -1,7 +1,5 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
-
 export default function SettingsPage() {
   return (
     <div className="container mx-auto py-8">
@@ -9,28 +7,20 @@ export default function SettingsPage() {
       
       <div className="grid gap-6 md:grid-cols-2">
         {/* Application Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Application Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Application configuration options will appear here.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Application Settings</h2>
+          <p className="text-sm text-gray-600">
+            Application configuration options will appear here.
+          </p>
+        </div>
 
         {/* Camera Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Camera Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Camera configuration options will appear here.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Camera Settings</h2>
+          <p className="text-sm text-gray-600">
+            Camera configuration options will appear here.
+          </p>
+        </div>
       </div>
     </div>
   );

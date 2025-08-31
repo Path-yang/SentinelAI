@@ -1,176 +1,128 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface AIModel {
   id: string;
   name: string;
-  category: string;
-  description: string;
+  status: 'active' | 'inactive';
+  accuracy: number;
+  lastUpdated: number;
 }
 
-const aiModels: AIModel[] = [
-  // Health & Safety
-  { id: "falls", name: "Fall Detection", category: "Health & Safety", description: "Detect when someone falls" },
-  { id: "immobility", name: "Extended Immobility", category: "Health & Safety", description: "Detect prolonged lack of movement" },
-  { id: "seizures", name: "Seizure Detection", category: "Health & Safety", description: "Detect seizure-like movements" },
-  
-  // Security
-  { id: "intruders", name: "Intruder Detection", category: "Security", description: "Detect unauthorized persons" },
-  { id: "objects", name: "Abandoned Objects", category: "Security", description: "Detect suspicious objects" },
-  { id: "tampering", name: "Camera Tampering", category: "Security", description: "Detect camera obstruction" },
-  
-  // Emergencies
-  { id: "fire", name: "Fire Detection", category: "Emergencies", description: "Detect fire or smoke" },
-  { id: "accidents", name: "Accidents", category: "Emergencies", description: "Detect accident scenes" },
-  { id: "distress", name: "Distress Signs", category: "Emergencies", description: "Detect signs of distress" },
-  
-  // Analytics
-  { id: "occupancy", name: "Occupancy Counting", category: "Analytics", description: "Count people in area" },
-  { id: "dwell", name: "Dwell Time", category: "Analytics", description: "Track time spent in area" },
-  { id: "traffic", name: "Traffic Patterns", category: "Analytics", description: "Analyze movement patterns" },
-];
-
-export default function AIDetectionPage() {
-  const [activeModels, setActiveModels] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-
-  // Load active models from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("activeAIModels");
-      if (saved) {
-        setActiveModels(JSON.parse(saved));
-      }
-    } catch (error) {
-      console.error("Failed to load active AI models:", error);
+export default function WatchPage() {
+  const [models, setModels] = useState<AIModel[]>([
+    {
+      id: '1',
+      name: 'Object Detection v2.1',
+      status: 'active',
+      accuracy: 94.2,
+      lastUpdated: Date.now() - 3600000 // 1 hour ago
+    },
+    {
+      id: '2',
+      name: 'Face Recognition v1.8',
+      status: 'inactive',
+      accuracy: 89.7,
+      lastUpdated: Date.now() - 7200000 // 2 hours ago
     }
-  }, []);
+  ]);
 
-  // Save active models to localStorage
-  const saveActiveModels = (models: string[]) => {
-    try {
-      localStorage.setItem("activeAIModels", JSON.stringify(models));
-    } catch (error) {
-      console.error("Failed to save active AI models:", error);
-    }
-  };
+  const [newModelName, setNewModelName] = useState('');
 
-  const toggleModel = (modelId: string) => {
-    const newActiveModels = activeModels.includes(modelId)
-      ? activeModels.filter(id => id !== modelId)
-      : [...activeModels, modelId];
+  const addModel = () => {
+    if (!newModelName.trim()) return;
     
-    setActiveModels(newActiveModels);
-    saveActiveModels(newActiveModels);
+    const newModel: AIModel = {
+      id: Date.now().toString(),
+      name: newModelName,
+      status: 'inactive',
+      accuracy: 0,
+      lastUpdated: Date.now()
+    };
+    
+    setModels([...models, newModel]);
+    setNewModelName('');
   };
 
-  const getCategories = () => {
-    const categories = ["all", ...Array.from(new Set(aiModels.map(m => m.category)))];
-    return categories;
+  const toggleModel = (id: string) => {
+    setModels(models.map(model => 
+      model.id === id 
+        ? { ...model, status: model.status === 'active' ? 'inactive' : 'active' }
+        : model
+    ));
   };
 
-  const filteredModels = aiModels.filter(model => {
-    const matchesSearch = model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         model.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || model.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const deleteModel = (id: string) => {
+    setModels(models.filter(model => model.id !== id));
+  };
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-6">AI Detection</h1>
+      <h1 className="text-2xl font-bold mb-6">AI Detection Models</h1>
       
-      {/* Search and Filter */}
-      <div className="mb-6 space-y-4">
+      {/* Add New Model */}
+      <div className="bg-white p-6 rounded-lg border shadow-sm mb-6">
+        <h2 className="text-lg font-semibold mb-4">Add New Model</h2>
         <div className="flex gap-4">
-          <div className="flex-1">
-            <Label htmlFor="search">Search Models</Label>
-            <Input
-              id="search"
-              placeholder="Search AI models..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="category">Category</Label>
-            <select
-              id="category"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              {getCategories().map(category => (
-                <option key={category} value={category}>
-                  {category === "all" ? "All Categories" : category}
-                </option>
-              ))}
-            </select>
-          </div>
+          <input
+            type="text"
+            value={newModelName}
+            onChange={(e) => setNewModelName(e.target.value)}
+            placeholder="Enter model name"
+            className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={addModel}
+            className="px-6 py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+          >
+            Add Model
+          </button>
         </div>
       </div>
 
-      {/* Models Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredModels.map((model) => {
-          const isActive = activeModels.includes(model.id);
-          return (
-            <Card key={model.id} className={isActive ? "ring-2 ring-primary" : ""}>
-              <CardHeader>
-                <CardTitle className="text-lg">{model.name}</CardTitle>
-                <p className="text-sm text-muted-foreground">{model.category}</p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm mb-4">{model.description}</p>
-                <Button
-                  variant={isActive ? "default" : "outline"}
+      {/* Models List */}
+      <div className="grid gap-4">
+        {models.map((model) => (
+          <div key={model.id} className="bg-white p-6 rounded-lg border shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold">{model.name}</h3>
+                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    model.status === 'active' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {model.status === 'active' ? 'Active' : 'Inactive'}
+                  </span>
+                  <span>Accuracy: {model.accuracy}%</span>
+                  <span>Updated: {new Date(model.lastUpdated).toLocaleTimeString()}</span>
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
                   onClick={() => toggleModel(model.id)}
-                  className="w-full"
+                  className={`px-4 py-2 rounded-md transition-colors ${
+                    model.status === 'active'
+                      ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                      : 'bg-green-500 text-white hover:bg-green-600'
+                  }`}
                 >
-                  {isActive ? "Active" : "Activate"}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Active Models Summary */}
-      {activeModels.length > 0 && (
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Active Models ({activeModels.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-              {activeModels.map(modelId => {
-                const model = aiModels.find(m => m.id === modelId);
-                return model ? (
-                  <div key={modelId} className="flex items-center justify-between p-3 border rounded-md">
-                    <div>
-                      <p className="font-medium">{model.name}</p>
-                      <p className="text-sm text-muted-foreground">{model.category}</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleModel(modelId)}
-                    >
-                      Deactivate
-                    </Button>
-                  </div>
-                ) : null;
-              })}
+                  {model.status === 'active' ? 'Deactivate' : 'Activate'}
+                </button>
+                <button
+                  onClick={() => deleteModel(model.id)}
+                  className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 } 

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Camera, Activity, Settings, Menu, X } from "lucide-react";
-import { cn } from "../../lib/utils";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -23,7 +22,7 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-gray-50">
       {/* Mobile menu button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -33,15 +32,14 @@ export default function DashboardLayout({
       </button>
 
       {/* Sidebar */}
-      <aside className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out lg:relative lg:z-0 lg:translate-x-0",
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r transform transition-transform duration-200 ease-in-out lg:relative lg:z-0 lg:translate-x-0 ${
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
+      }`}>
         {/* Sidebar header */}
         <div className="flex h-16 items-center justify-between px-4 border-b">
           <Link
             href="/"
-            className="flex items-center space-x-2 text-primary font-bold text-xl tracking-tight"
+            className="flex items-center space-x-2 text-blue-600 font-bold text-xl tracking-tight"
             onClick={() => setSidebarOpen(false)}
           >
             <Image
@@ -64,12 +62,11 @@ export default function DashboardLayout({
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={cn(
-                    "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent hover:text-accent-foreground"
-                  )}
+                      ? "bg-blue-500 text-white"
+                      : "hover:bg-gray-100 hover:text-gray-900"
+                  }`}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <item.icon className="mr-3 h-5 w-5" />
@@ -83,7 +80,7 @@ export default function DashboardLayout({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
                 <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-600">
                   System Online
                 </span>
               </div>
@@ -101,11 +98,11 @@ export default function DashboardLayout({
       )}
 
       {/* Main content */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pt-16 lg:pt-6">
+      <main className="flex-1 overflow-auto">
+        <div className="p-6">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 } 
