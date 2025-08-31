@@ -2,12 +2,29 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCameraStore } from "@/store/camera-store";
+import Link from "next/link";
 
 export default function Dashboard() {
   const { isConnected } = useCameraStore();
 
   return (
     <div className="container mx-auto py-8">
+      {/* Navigation Bar */}
+      <nav className="flex gap-4 mb-6">
+        <Link 
+          href="/dashboard"
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+        >
+          Dashboard
+        </Link>
+        <Link 
+          href="/camera"
+          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+        >
+          Connect Camera
+        </Link>
+      </nav>
+
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

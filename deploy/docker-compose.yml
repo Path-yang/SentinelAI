@@ -1,23 +1,18 @@
 version: "3.8"
-
 services:
   mediamtx:
     image: bluenviron/mediamtx:latest
     container_name: mediamtx
     restart: unless-stopped
     volumes:
-      - ../configs/mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ./configs/mediamtx/mediamtx.yml:/mediamtx.yml:ro
       - ./hls:/hls
     ports:
-      - "8554:8554"   # RTSP ingest from Bridge
+      - "8554:8554"
+      - "8888:8888"
+      - "9997:9997"
     environment:
       - MEDIAMTX_CONFIG_PATH=/mediamtx.yml
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9997/v3/paths/list"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   backend:
     image: python:3.11-slim
@@ -26,7 +21,7 @@ services:
     working_dir: /app
     command: >
       bash -lc "
-        pip install --no-cache-dir fastapi uvicorn[standard] pydantic &&
+        pip install --no-cache-dir fastapi uvicorn[standard] pydantic pyjwt &&
         uvicorn main:app --host 0.0.0.0 --port 10000 --workers 1
       "
     volumes:
@@ -36,45 +31,22 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:10000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    depends_on:
-      - mediamtx
+      - SENTINEL_JWT_SECRET=${SENTINEL_JWT_SECRET:-change-me-please-32-chars-min}
+      - STREAM_DOMAIN=${STREAM_DOMAIN:-54.206.49.163}
+      - BASE_RTSP_PORT=8554
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2
     container_name: caddy
     restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-      mediamtx:
-        condition: service_healthy
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./hls:/hls:ro
+      - ./hls:/hls
       - ./caddy_data:/data
       - ./caddy_config:/config
-    environment:
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:2019/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-volumes:
-  caddy_data:
-  caddy_config:
 
 networks:
   default:
-    name: sentinel-network 
+    name: sentinel-network

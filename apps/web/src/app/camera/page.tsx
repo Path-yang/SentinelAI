@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { useCameraStore } from "@/store/camera-store";
+import Link from "next/link";
 
 type Session = { camera_id: string; publish_url: string; hls_url: string };
 
@@ -100,6 +101,22 @@ export default function ConnectCamera() {
 
   return (
     <div className="container mx-auto py-8">
+      {/* Navigation Bar */}
+      <nav className="flex gap-4 mb-6">
+        <Link 
+          href="/dashboard"
+          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+        >
+          ← Dashboard
+        </Link>
+        <Link 
+          href="/camera"
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+        >
+          Connect Camera
+        </Link>
+      </nav>
+
       <h1 className="text-2xl font-bold mb-6">Connect Camera via Bridge</h1>
       
       {error && (

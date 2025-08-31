@@ -1,0 +1,7 @@
+hls:
+  directory: /hls
+  segmentDuration: 2s
+paths:
+  all:
+    # Backend auth hook; OK to keep returning 200 for now (MVP)
+    authServer: http://backend:10000/mediamtx/auth
