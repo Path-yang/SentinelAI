@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface AIModel {
   id: string;
@@ -86,23 +90,21 @@ export default function AIDetectionPage() {
       <div className="mb-6 space-y-4">
         <div className="flex gap-4">
           <div className="flex-1">
-            <label htmlFor="search" className="block text-sm font-medium mb-2">Search Models</label>
-            <input
+            <Label htmlFor="search">Search Models</Label>
+            <Input
               id="search"
-              type="text"
               placeholder="Search AI models..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div>
-            <label htmlFor="category" className="block text-sm font-medium mb-2">Category</label>
+            <Label htmlFor="category">Category</Label>
             <select
               id="category"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {getCategories().map(category => (
                 <option key={category} value={category}>
@@ -119,53 +121,55 @@ export default function AIDetectionPage() {
         {filteredModels.map((model) => {
           const isActive = activeModels.includes(model.id);
           return (
-            <div key={model.id} className={`border rounded-lg p-6 ${isActive ? "ring-2 ring-blue-500" : ""}`}>
-              <div className="mb-4">
-                <h3 className="text-lg font-medium">{model.name}</h3>
-                <p className="text-sm text-gray-500">{model.category}</p>
-              </div>
-              <div>
+            <Card key={model.id} className={isActive ? "ring-2 ring-primary" : ""}>
+              <CardHeader>
+                <CardTitle className="text-lg">{model.name}</CardTitle>
+                <p className="text-sm text-muted-foreground">{model.category}</p>
+              </CardHeader>
+              <CardContent>
                 <p className="text-sm mb-4">{model.description}</p>
-                <button
+                <Button
+                  variant={isActive ? "default" : "outline"}
                   onClick={() => toggleModel(model.id)}
-                  className={`w-full px-4 py-2 rounded-md font-medium transition-colors ${
-                    isActive 
-                      ? "bg-blue-600 text-white hover:bg-blue-700" 
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
-                  }`}
+                  className="w-full"
                 >
                   {isActive ? "Active" : "Activate"}
-                </button>
-              </div>
-            </div>
+                </Button>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
 
       {/* Active Models Summary */}
       {activeModels.length > 0 && (
-        <div className="mt-8 border rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-4">Active Models ({activeModels.length})</h3>
-          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-            {activeModels.map(modelId => {
-              const model = aiModels.find(m => m.id === modelId);
-              return model ? (
-                <div key={modelId} className="flex items-center justify-between p-3 border rounded-md">
-                  <div>
-                    <p className="font-medium">{model.name}</p>
-                    <p className="text-sm text-gray-500">{model.category}</p>
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Active Models ({activeModels.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {activeModels.map(modelId => {
+                const model = aiModels.find(m => m.id === modelId);
+                return model ? (
+                  <div key={modelId} className="flex items-center justify-between p-3 border rounded-md">
+                    <div>
+                      <p className="font-medium">{model.name}</p>
+                      <p className="text-sm text-muted-foreground">{model.category}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleModel(modelId)}
+                    >
+                      Deactivate
+                    </Button>
                   </div>
-                  <button
-                    onClick={() => toggleModel(modelId)}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    Deactivate
-                  </button>
-                </div>
-              ) : null;
-            })}
-          </div>
-        </div>
+                ) : null;
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

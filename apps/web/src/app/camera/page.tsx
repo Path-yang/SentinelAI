@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Hls from "hls.js";
+import { useCameraStore } from "@/store/camera-store";
 import Link from "next/link";
 
 type Session = { camera_id: string; publish_url: string; hls_url: string };
@@ -10,7 +12,10 @@ export default function ConnectCamera() {
   const [cmd, setCmd] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const vidRef = useRef<HTMLVideoElement>(null);
   
+  const { setSession: setStoreSession, setIsConnected, setIsStreaming } = useCameraStore();
+
   // Fallback to localhost if environment variable not set
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:10000";
 
@@ -31,6 +36,10 @@ export default function ConnectCamera() {
       const js = await res.json();
       setSession(js);
       
+      // Update store
+      setStoreSession(js);
+      setIsConnected(true);
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create session");
       console.error("Session creation error:", err);
@@ -39,10 +48,47 @@ export default function ConnectCamera() {
     }
   }
 
-  // Update command when session or RTSP changes
-  if (session && rtsp) {
+  useEffect(() => {
+    if (!session || !vidRef.current) return;
+    const url = session.hls_url;
+    
+    // Only try to play if we have a valid HLS URL (not placeholder)
+    if (url.includes("STREAM_DOMAIN")) {
+      return; // Don't try to play placeholder URLs
+    }
+    
+    if (Hls.isSupported()) {
+      const h = new Hls({ 
+        liveDurationInfinity: true,
+        enableWorker: true,
+        lowLatencyMode: true
+      });
+      
+      h.loadSource(url);
+      h.attachMedia(vidRef.current);
+      
+      h.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log("HLS manifest loaded");
+        setIsStreaming(true);
+      });
+      
+      h.on(Hls.Events.ERROR, (event, data) => {
+        console.error("HLS error:", data);
+        setIsStreaming(false);
+      });
+      
+      return () => h.destroy();
+    } else if (vidRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      vidRef.current.src = url; // Safari
+      setIsStreaming(true);
+    }
+  }, [session, setIsStreaming]);
+
+  useEffect(() => {
+    if (!session) return setCmd("");
+    if (!rtsp) return setCmd("Enter your RTSP above to get the Bridge command.");
     setCmd(`python apps/bridge/bridge.py "${rtsp}" "${session.publish_url}"`);
-  }
+  }, [rtsp, session]);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -137,7 +183,7 @@ export default function ConnectCamera() {
             <p className="text-sm font-medium mb-2">Run this command on your LAN device:</p>
             <div className="relative">
               <code className="block bg-gray-100 p-3 rounded text-sm break-all">
-                {cmd || "Enter your RTSP above to get the Bridge command."}
+                {cmd}
               </code>
               <button
                 onClick={() => copyToClipboard(cmd)}
@@ -147,6 +193,18 @@ export default function ConnectCamera() {
               </button>
             </div>
           </div>
+          
+          {!session.hls_url.includes("STREAM_DOMAIN") && (
+            <div>
+              <p className="text-sm font-medium mb-2">Live Stream Preview:</p>
+              <video
+                ref={vidRef}
+                controls
+                className="w-full max-w-2xl border rounded bg-gray-100"
+                poster="/images/video-placeholder.png"
+              />
+            </div>
+          )}
           
           {session.hls_url.includes("STREAM_DOMAIN") && (
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
