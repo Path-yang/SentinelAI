@@ -4,6 +4,7 @@
   "scripts": {
     "dev:web": "pnpm --dir apps/web dev",
     "dev:backend": "bash apps/backend/run.sh",
-    "dev:bridge": "python apps/bridge/bridge.py --help || true"
+    "dev:bridge": "python apps/bridge/bridge.py --help || true",
+    "build:web": "pnpm --dir apps/web run build"
   }
 } 
