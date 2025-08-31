@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { useCameraStore } from "@/store/camera-store";
+import { useCameraStore } from "../../store/camera-store";
 import Link from "next/link";
 
 type Session = { camera_id: string; publish_url: string; hls_url: string };
